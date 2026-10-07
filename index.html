@@ -285,6 +285,36 @@ img,svg,video{max-width:100%}
 /* install button: easy to tap, small close button no longer steals taps */
 #fab .fx{min-height:0;min-width:0;width:26px;height:26px;top:-14px;right:-12px;font-size:16px}
 #fab .fb{min-height:48px;padding-left:18px;padding-right:20px}
+
+/* ===== Facebook-style top bar ===== */
+:root{--fb:#0866ff;--fbg:#e4e6eb;--fbh:#f0f2f5;--fbi:#65676b}
+:root[data-theme=dark]{--fb:#2d88ff;--fbg:#3a3b3c;--fbh:rgba(255,255,255,.08);--fbi:#b0b3b8}
+:root .nav{position:sticky;top:0;z-index:6;align-items:stretch;gap:2px;min-height:56px;
+ margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);width:auto;
+ padding:env(safe-area-inset-top,0px) calc(50vw - 50% + 8px) 0;
+ background:rgba(255,255,255,.97);border:0;border-bottom:1px solid #dadde1;border-radius:0;
+ box-shadow:0 1px 2px rgba(0,0,0,.1)}
+:root[data-theme=dark] .nav{background:rgba(36,37,38,.97);border-bottom-color:rgba(255,255,255,.1);box-shadow:0 1px 2px rgba(0,0,0,.5)}
+:root .nav .sep{display:none}
+:root .nav .nl{display:none}
+/* tabs */
+:root .nav button[onclick^="page("]{flex:1 1 0;max-width:none;min-height:52px;margin:4px 0 0;padding:0 8px;border-radius:8px 8px 0 0;background:transparent;color:var(--fbi);transform:none}
+:root .nav button[onclick^="page("] svg{width:26px;height:26px}
+:root .nav button[onclick^="page("]:hover{background:var(--fbh);color:var(--fbi)}
+:root .nav button[onclick^="page("].on,:root[data-theme=dark] .nav button[onclick^="page("].on{background:transparent;color:var(--fb)}
+:root .nav button[onclick^="page("].on::after{content:"";position:absolute;left:10%;right:10%;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--fb)}
+:root .nav button[onclick^="page("] .dot{position:absolute;top:4px;right:calc(50% - 28px);margin:0;background:#e41e3f;color:#fff}
+/* round action buttons on the right */
+:root .nav button:not([onclick^="page("]){flex:0 0 40px;width:40px;height:40px;min-height:40px;align-self:center;padding:0;margin-left:4px;border-radius:50%;background:var(--fbg);color:#050505;transform:none}
+:root[data-theme=dark] .nav button:not([onclick^="page("]){background:var(--fbg);color:#e4e6eb}
+:root .nav button:not([onclick^="page("]):hover{background:#d8dadf}
+:root[data-theme=dark] .nav button:not([onclick^="page("]):hover{background:#4e4f50}
+:root .nav button.out{color:#e41e3f;background:#fde8ea}
+:root[data-theme=dark] .nav button.out{color:#ff7478;background:rgba(255,116,120,.16)}
+:root .nav button.out:hover{background:#e41e3f;color:#fff}
+:root .nav button:not([onclick^="page("]) svg{width:20px;height:20px}
+@media(pointer:coarse){:root .nav button:not([onclick^="page("]){min-height:40px}}
+@media(max-width:360px){:root .nav button:not([onclick^="page("]){flex-basis:36px;width:36px;height:36px;margin-left:2px}}
 </style>
 </head>
 <body>
