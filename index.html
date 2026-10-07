@@ -72,6 +72,16 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 .dot{background:var(--bad);color:#fff;border-radius:99px;font-size:12px;min-width:20px;padding:1px 6px;font-weight:800}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chips button{padding:5px 12px;font-size:13px;border-radius:99px}
 .chips button.on{background:var(--char);color:#fff;border-color:var(--char)}
+
+/* icon nav */
+.nav{align-items:center}
+.nav button{position:relative;flex:1;min-height:44px;padding:8px}
+.nav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.nav button .dot{position:absolute;top:3px;right:calc(50% - 22px);min-width:18px;font-size:11px;line-height:16px;padding:0 5px}
+.nav .sep{width:1px;align-self:stretch;margin:6px 2px;background:rgba(255,255,255,.25)}
+.nav button.out{flex:0 0 52px;color:#ffb4b4}
+.nav button.out:hover{background:rgba(199,47,47,.55);color:#fff}
+.hero{min-height:170px;justify-content:flex-end}
 .chat .log{height:min(55vh,430px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f1ede8;border-radius:12px;margin:10px 0}
 .msg{max-width:85%;background:#fff;border-radius:12px;padding:8px 12px;align-self:flex-start;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .msg.me{align-self:flex-end;background:#fbe8d6}.mh{display:flex;gap:8px;align-items:center;font-size:12px}
@@ -139,18 +149,27 @@ if(configured){
 }else render();
 
 /* ---- views ---- */
+const IC={
+ units:'<svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>',
+ regs:'<svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>',
+ chat:'<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+ rent:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
+ out:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>'};
+const navBtn=(pg,id,label,extra='')=>`<button class="${pg===id?'on':''}" onclick="page('${id}')" title="${label}" aria-label="${label}">${IC[id]}${extra}</button>`;
+const soloNav=()=>`<nav class="nav" style="justify-content:flex-end">${logoutBtn().replace('<span class="sep"></span>','')}</nav>`;
+const logoutBtn=()=>{const u=S.user||{};const who=(u.email||u.displayName||'')+' · '+(S.owner?'Owner':'Tenant');return`<span class="sep"></span><button class="out" onclick="logout()" title="Log out (${esc(who)})" aria-label="Log out">${IC.out}</button>`};
 function hero(t,sub){
  const u=S.user;
- return`<div class="hero"><div class="top"><div></div>${u?`<div class="who">${esc(u.email||u.displayName)} · ${S.owner?'Owner':'Tenant'}<button class="ghost" onclick="logout()">Log out</button></div>`:''}</div><div><h1>${t}</h1><p class="sub">${sub}</p></div></div>`}
+ return`<div class="hero"><div><h1>${t}</h1><p class="sub">${sub}</p></div></div>`}
 function render0(){
  const app=$('#app');
  if(!configured){app.innerHTML=hero('Apartment Billing','Almost ready')+`<div class="card login"><h2>Add your Firebase config</h2><p>Open this file, find <b>firebaseConfig</b> near the top of the script, and paste your project's web app values. Then set <b>OWNER_EMAILS</b>.</p></div>`;return}
  if(!S.ready){app.innerHTML=hero('Apartment Billing','Loading…');return}
  if(!S.user){app.innerHTML=hero('Apartment Billing','Verified tenants, clear rent status.')+authView();return}
- if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
+ if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+soloNav()+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
  if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();return}
  const ok=S.profile?.status==='approved',pg=S.page==='chat'?'chat':'rent';
- app.innerHTML=hero(pg==='chat'?'Group chat':'Your rent',pg==='chat'?'Talk with the owner and other tenants.':'Register once, then see what you owe and when.')+(ok?tenantNav(pg):'')+(ok&&pg==='chat'?chatView():tenantApp());
+ app.innerHTML=hero(pg==='chat'?'Group chat':'Your rent',pg==='chat'?'Talk with the owner and other tenants.':'Register once, then see what you owe and when.')+(ok?tenantNav(pg):soloNav())+(ok&&pg==='chat'?chatView():tenantApp());
 }
 function authView(){
  const up=S.tab==='up';
@@ -213,7 +232,7 @@ function tenantView(a){
 /* owner */
 function ownerView(){
  const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat'].includes(S.page)?S.page:'units';
- const nav=`<nav class="nav"><button class="${pg==='units'?'on':''}" onclick="page('units')">Units</button><button class="${pg==='regs'?'on':''}" onclick="page('regs')">Registrations${pend?`<span class="dot">${pend}</span>`:''}</button><button class="${pg==='chat'?'on':''}" onclick="page('chat')">Group chat${pg==='chat'?'':unreadBadge()}</button></nav>`;
+ const nav=`<nav class="nav">${navBtn(pg,'units','Units')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`;
  return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():unitsView());
 }
 const page=p=>{S.page=p;render()},filt=k=>{S.filter=k;render()};
@@ -279,7 +298,7 @@ const ms=t=>t?.toMillis?.()??0;
 const tm=t=>{const d=t?.toDate?.();return d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''};
 const unread=()=>S.user?S.msgs.filter(m=>m.uid!==S.user.uid&&ms(m.createdAt)>(S.lastRead||0)).length:0;
 const unreadBadge=()=>{const n=unread();return n?`<span class="dot">${n>99?'99+':n}</span>`:''};
-function tenantNav(pg){return`<nav class="nav"><button class="${pg==='rent'?'on':''}" onclick="page('rent')">My rent</button><button class="${pg==='chat'?'on':''}" onclick="page('chat')">Group chat${pg==='chat'?'':unreadBadge()}</button></nav>`}
+function tenantNav(pg){return`<nav class="nav">${navBtn(pg,'rent','My rent')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`}
 function ensureChat(){
  if(S.chatOn||!S.user)return;S.chatOn=true;
  unsubs.push(onSnapshot(query(collection(db,'messages'),orderBy('createdAt'),limitToLast(100)),s=>{S.msgs=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},e=>{S.msg=fe(e);render()}));
