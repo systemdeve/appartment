@@ -325,6 +325,7 @@ img,svg,video{max-width:100%}
 /* tighter title area */
 .hero{min-height:0;padding-top:20px;padding-bottom:14px;justify-content:flex-start}
 .sub{margin-top:6px}
+.rc table{width:100%;border-collapse:collapse}.rc td{padding:8px 0;border-bottom:1px solid var(--line)}.rc td:last-child{text-align:right;font-weight:700}.rc .big{font-size:28px;font-weight:800;margin:8px 0}.rc h1{font-size:22px;color:var(--ink);text-shadow:none}
 </style>
 </head>
 <body>
@@ -406,6 +407,7 @@ const IC={
  chat:'<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
  rent:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
  out:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>'};
+IC.history='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';IC.notif='<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
 const navBtn=(pg,id,label,extra='')=>`<button class="${pg===id?'on':''}" onclick="page('${id}')" title="${label}" aria-label="${label}">${IC[id]}<span class="nl">${label}</span>${extra}</button>`;
 const soloNav=()=>`<nav class="nav" style="justify-content:flex-end">${logoutBtn().replace('<span class="sep"></span>','')}</nav>`;
 const logoutBtn=()=>{const u=S.user||{};const who=(u.email||u.displayName||'')+' · '+(S.owner?'Owner':'Tenant');return`${installBtn()}${themeBtn()}<span class="sep"></span><button class="out" onclick="logout()" title="Log out (${esc(who)})" aria-label="Log out">${IC.out}</button>`};
@@ -421,8 +423,8 @@ function render0(){
  if(!S.user){app.innerHTML=hero('Apartment Billing','Verified tenants, clear rent status.')+authView();return}
  if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+soloNav()+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
  if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();paintUnits();return}
- const ok=S.profile?.status==='approved',pg=S.page==='chat'?'chat':'rent';
- app.innerHTML=hero(pg==='chat'?'Group chat':'Your rent',pg==='chat'?'Talk with the owner and other tenants.':'Register once, then see what you owe and when.')+(ok?tenantNav(pg):soloNav())+(ok&&pg==='chat'?chatView():tenantApp());
+ const ok=S.profile?.status==='approved',pg=['chat','history','notif'].includes(S.page)?S.page:'rent',T={chat:['Group chat','Talk with the owner and other tenants.'],history:['Payment history','Every rent payment you have made.'],notif:['Notifications','Rent reminders and updates on your payments.']}[pg]||['Your rent','Register once, then see what you owe and when.'];
+ app.innerHTML=hero(T[0],T[1])+(ok?tenantNav(pg):soloNav())+(ok&&pg==='chat'?chatView():tenantApp());
 }
 function authView(){
  const up=S.tab==='up';
@@ -478,9 +480,11 @@ function tenantView(a){
   due:['Rent is due soon',d===0?`${money(a.rent)} is due today.`:`${money(a.rent)} is due in ${d} day${d>1?'s':''} (${fmt(a.due)}).`],
   overdue:['Your rent is overdue',`${money(owed(a))}${late(a)?' (incl. '+money(late(a))+' late fee)':''} was due on ${fmt(a.due)}, ${-d} day${-d>1?'s':''} ago. Please pay as soon as possible.`]}[s];
  const n={overdue:`Overdue by ${-d} day(s): ${money(a.rent)}`,due:`Payment due ${d===0?'today':'in '+d+' day(s)'}: ${money(a.rent)}`,unpaid:`Upcoming payment on ${fmt(a.due)}`,paid:'Payment received. Nothing to do.'}[s];
- return`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
+ const pgv=S.page,B=`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
  <div class="card"><h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
- <div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div><p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>${reminderCard()}${reportCard(a,s)}${payHistory(a,s)}`}
+ `,N=`<div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div>${payNotes()}${repNotes()}<p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`;
+ return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reportCard(a,s)}
+const repNotes=()=>S.reps.slice().sort((x,y)=>ms(y.createdAt)-ms(x.createdAt)).map(r=>`<div class="note">${badge(r.status)} ${monthLabel(r.month)}: ${r.status==='approved'?'Owner confirmed your '+money(r.amount)+' payment.':r.status==='declined'?'Declined. '+esc(r.reason||'No reason given.'):'Waiting for the owner to confirm '+money(r.amount)+'.'}</div>`).join('');
 function reportCard(a,s){
  if(s==='paid'||vacant(a))return'';
  const r=S.reps.find(x=>x.id===payId(a.id,a.due.slice(0,7)));
@@ -608,7 +612,7 @@ const markPaid=id=>run(async()=>{const a=S.units.find(x=>x.id===id),ym=(a.due||'
  if(!await ask('Mark as paid?','Mark '+a.unit+' as paid for '+monthLabel(ym)+'.\nPayment records are permanent and cannot be edited or deleted.','Mark paid'))return;
  const b=writeBatch(db);b.update(doc(db,'units',id),{due:nextDue(a.due),paid:false});
  if(!hasPay(id,ym))b.set(doc(db,'payments',payId(id,ym)),payDoc({...a,owed:owed(a)},ym));
- await b.commit();toast('Marked as paid')});
+ await b.commit();showReceipt({id:payId(id,ym),unit:a.unit,tenantName:a.tenantName,month:ym,amount:owed(a),paidMs:Date.now()});toast('Marked as paid. Receipt created.')});
 const pendRep=()=>S.reps.filter(r=>r.status==='pending');
 function reportPay(){const a=S.unit;if(!a)return;S.proof='';
  openM(`<h2>Report payment</h2><p class="mut" style="margin-top:0">${esc(a.unit)} · ${monthLabel(a.due.slice(0,7))}</p>
@@ -629,7 +633,7 @@ const approveRep=id=>run(async()=>{const r=S.reps.find(x=>x.id===id),a=S.units.f
  b.update(doc(db,'paymentReports',id),{status:'approved',reviewedAt:serverTimestamp()});
  if(!hasPay(a.id,r.month))b.set(doc(db,'payments',payId(a.id,r.month)),payDoc({...a,rent:r.amount},r.month));
  if((a.due||'').slice(0,7)===r.month)b.update(doc(db,'units',a.id),{due:nextDue(a.due),paid:false});
- await b.commit();toast('Payment approved')});
+ await b.commit();showReceipt({id:payId(a.id,r.month),unit:a.unit,tenantName:r.tenantName,month:r.month,amount:r.amount,paidMs:Date.now()});toast('Payment approved. Receipt created.')});
 const declineRep=id=>run(async()=>{const reason=await ask('Decline payment report','Write a reason the tenant will see (optional).','Decline','Reason');if(reason===null)return;
  await updateDoc(doc(db,'paymentReports',id),{status:'declined',reason:reason.trim().slice(0,200),reviewedAt:serverTimestamp()});toast('Report declined')});
 const closeM=()=>$('#modal').classList.remove('on');
@@ -690,8 +694,11 @@ const exportCsv=()=>{const q=v=>'"'+String(v).replace(/"/g,'""')+'"';dl('income-
 const popup=(t,body)=>{const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print.','warn');return}
  w.document.write(`<!doctype html><title>${esc(t)}</title><meta name=viewport content="width=device-width,initial-scale=1"><style>body{font:15px system-ui,sans-serif;margin:32px;color:#16181d}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:8px;text-align:left}h1{margin:0 0 4px}.r{text-align:right}.big{font-size:28px;font-weight:800}<\/style>${body}<script>onload=()=>setTimeout(print,300)<\/script>`);w.document.close()};
 const printReport=()=>{const r=rows(),tot=r.reduce((t,x)=>x[2]==='Paid'?t+x[3]:t,0);popup('Income report',`<h1>Income report</h1><div>${monthLabel(S.month)}</div><p class="big">${money(tot)} received</p><table><tr><th>Unit</th><th>Tenant</th><th>Status</th><th class="r">Amount</th><th>Paid on</th></tr>${r.map(x=>`<tr><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td>${esc(x[2])}</td><td class="r">${money(x[3])}</td><td>${x[4]?fmt(x[4]):''}</td></tr>`).join('')}</table>`)};
-const receipt=(unitId,ym)=>{const p=S.pays.find(x=>x.unitId===unitId&&x.month===ym);if(!p){toast('No payment record found.','err');return}
- popup('Receipt',`<h1>Rent receipt</h1><div>Receipt no. ${esc(p.id)}</div><p class="big">${money(p.amount)}</p><table><tr><td>Tenant</td><td>${esc(p.tenantName)}</td></tr><tr><td>Unit</td><td>${esc(p.unit)}</td></tr><tr><td>For</td><td>${monthLabel(p.month)}</td></tr><tr><td>Paid on</td><td>${p.paidAt?fmt(iso(new Date(ms(p.paidAt)))):''}</td></tr></table><p>Thank you.</p>`)};
+const receiptBody=p=>`<h1>Rent receipt</h1><div>Receipt no. ${esc(p.id)}</div><p class="big">${money(p.amount)}</p><table><tr><td>Tenant</td><td>${esc(p.tenantName)}</td></tr><tr><td>Unit</td><td>${esc(p.unit)}</td></tr><tr><td>For</td><td>${monthLabel(p.month)}</td></tr><tr><td>Paid on</td><td>${fmt(iso(new Date(p.paidMs||ms(p.paidAt)||Date.now())))}</td></tr></table><p>Thank you.</p>`;
+const showReceipt=p=>openM(`<div class="rc">${receiptBody(p)}</div><div class="row"><button onclick="closeM()">Close</button><button class="p" onclick="printReceipt('${p.id}')">Print / Save PDF</button></div>`);
+const receipt=(unitId,ym)=>{const p=S.pays.find(x=>x.unitId===unitId&&x.month===ym);if(!p){toast('No payment record found.','err');return}showReceipt(p)};
+const printReceipt=id=>{const p=S.pays.find(x=>x.id===id);if(!p){toast('Receipt is still saving. Try again in a moment.','warn');return}popup('Receipt',receiptBody(p))};
+const payNotes=()=>S.pays.slice().sort((x,y)=>ms(y.paidAt)-ms(x.paidAt)).map(p=>`<div class="note">${badge('paid')} ${monthLabel(p.month)}: payment of ${money(p.amount)} received. <button class="s" onclick="receipt('${p.unitId}','${p.month}')">View receipt</button></div>`).join('');
 const reminderCard=()=>('Notification' in window&&Notification.permission==='default')?`<div class="card"><div class="head"><h2 style="margin:0">Rent reminders</h2><button class="p s" onclick="enableReminders()">Turn on</button></div><p class="mut" style="margin:0">Get a notification when your rent is due soon or overdue.</p></div>`:'';
 const enableReminders=async()=>{const r=await Notification.requestPermission();toast(r==='granted'?'Reminders turned on':'Reminders blocked',r==='granted'?'ok':'warn');render()};
 function remind(){try{const a=S.unit;if(S.owner||!a||!S.user||!('Notification' in window)||Notification.permission!=='granted')return;
@@ -703,7 +710,8 @@ const ms=t=>t?.toMillis?.()??0;
 const tm=t=>{const d=t?.toDate?.();return d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''};
 const unread=()=>S.user?S.msgs.filter(m=>m.uid!==S.user.uid&&ms(m.createdAt)>(S.lastRead||0)).length:0;
 const unreadBadge=()=>{const n=unread();return n?`<span class="dot">${n>99?'99+':n}</span>`:''};
-function tenantNav(pg){return`<nav class="nav">${navBtn(pg,'rent','My rent')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`}
+const alertDot=()=>(S.unit&&['overdue','due'].includes(status(S.unit)))||S.reps.some(r=>r.status==='declined')?'<span class="dot">!</span>':'';
+function tenantNav(pg){return`<nav class="nav">${navBtn(pg,'rent','My rent')}${navBtn(pg,'history','Payment history')}${navBtn(pg,'notif','Notifications',pg==='notif'?'':alertDot())}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`}
 function ensureChat(){
  if(S.chatOn||!S.user)return;S.chatOn=true;
  unsubs.push(onSnapshot(query(collection(db,'messages'),orderBy('createdAt'),limitToLast(100)),s=>{S.msgs=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},e=>{S.msg=fe(e);render()}));
@@ -748,7 +756,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
