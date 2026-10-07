@@ -180,10 +180,23 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink);box
 [data-theme=dark] .bg::after{background:linear-gradient(180deg,rgba(8,10,14,.45) 0,rgba(8,10,14,.7) 38%,rgba(8,10,14,.92) 100%)}
 [data-theme=dark] .skl{background:linear-gradient(90deg,#242831 25%,#2d323c 50%,#242831 75%);background-size:200% 100%}
 [data-theme=dark] .ldi{background:#ecedf0}[data-theme=dark] .ldi svg{stroke:#16181d}[data-theme=dark] .ldb{background:#2d323c}
+
+/* floating install button */
+#fab{position:fixed;right:12px;bottom:96px;z-index:4;touch-action:none;user-select:none;-webkit-user-select:none;animation:pop .5s var(--ez);transition:left .25s var(--ez),top .2s}
+#fab[hidden]{display:none}#fab.drag{transition:none}
+#fab .fb{display:flex;align-items:center;gap:8px;padding:12px 18px 12px 14px;border-radius:99px;border:0;color:#fff;font-weight:800;font-size:14px;background:linear-gradient(135deg,#ff8a3d,#e8590c);box-shadow:0 10px 28px rgba(232,89,12,.45),0 2px 6px rgba(0,0,0,.25);cursor:grab;position:relative;touch-action:none}
+#fab.drag .fb{cursor:grabbing}
+#fab .fb:hover{background:linear-gradient(135deg,#ff9650,#f0620f);transform:none}
+#fab .fb svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;animation:nudge 1.6s ease-in-out infinite}
+#fab .fb::after{content:"";position:absolute;inset:0;border-radius:99px;border:2px solid rgba(232,89,12,.65);animation:ring 1.8s ease-out infinite;pointer-events:none}
+#fab .fx{position:absolute;top:-9px;right:-6px;width:24px;height:24px;padding:0;border-radius:50%;background:#16181d;color:#fff;border:2px solid #fff;font-size:14px;line-height:1;display:grid;place-items:center;transform:none}
+@keyframes ring{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.35,1.7);opacity:0}}
+@keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
+<div id="fab" hidden><button class="fb" aria-label="Install app. Drag to move."><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Install app</span></button><button class="fx" aria-label="Hide install button">×</button></div>
 <div id="toasts" aria-live="polite"></div><div class="modal" id="dlg"></div>
 <div id="loader" role="status" aria-label="Loading"><div class="ld"><div class="ldi"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg></div><div class="ldn">Apartment Billing</div><div class="ldb"><i></i></div></div></div>
 <script>setTimeout(function(){var l=document.getElementById('loader');if(l)l.classList.add('off')},12000)</script>
@@ -423,12 +436,34 @@ const toggleTheme=()=>{const t=document.documentElement.dataset.theme==='dark'?'
 applyTheme(document.documentElement.dataset.theme);
 matchMedia('(prefers-color-scheme:dark)').addEventListener?.('change',e=>{let v=null;try{v=localStorage.getItem('theme')}catch(x){}if(!v){applyTheme(e.matches?'dark':'light');render()}});
 const themeBtn=()=>{const d=document.documentElement.dataset.theme==='dark';return`<button onclick="toggleTheme()" title="${d?'Light':'Dark'} mode" aria-label="Toggle dark mode">${d?IC.sun:IC.moon}</button>`};
-const installBtn=()=>window.__ip?`<button onclick="installApp()" title="Install app" aria-label="Install app">${IC.dl}</button>`:'';
-const installApp=async()=>{const e=window.__ip;if(!e)return;e.prompt();await e.userChoice.catch(()=>{});window.__ip=null;render()};
-addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__ip=e;if(S.ready)render()});
-addEventListener('appinstalled',()=>{window.__ip=null;toast('App installed');render()});
+const installBtn=()=>'';
+const installApp=async()=>{const e=window.__ip;if(!e)return;e.prompt();await e.userChoice.catch(()=>{});window.__ip=null;updateFab()};
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__ip=e;updateFab()});
+addEventListener('appinstalled',()=>{window.__ip=null;toast('App installed');updateFab()});
 addEventListener('offline',()=>toast('You are offline. Changes need a connection.','warn'));
 addEventListener('online',()=>toast('Back online'));
+
+/* floating, draggable install button */
+const fab=$('#fab'),isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+let fp={s:'r',y:null};try{fp=JSON.parse(localStorage.getItem('fabPos'))||fp}catch(e){}
+const fabHidden=()=>{try{return sessionStorage.getItem('fabHide')==='1'}catch(e){return false}};
+function fabPlace(){const r=fab.getBoundingClientRect();let y=fp.y==null?innerHeight-r.height-96:fp.y;y=Math.min(Math.max(10,y),innerHeight-r.height-10);fab.style.top=y+'px';fab.style.bottom='auto';if(fp.s==='l'){fab.style.left='12px';fab.style.right='auto'}else{fab.style.right='12px';fab.style.left='auto'}}
+function updateFab(){const show=!standalone()&&!fabHidden()&&!!(window.__ip||isIOS);fab.hidden=!show;if(show)fabPlace()}
+const fabClick=()=>{if(window.__ip)installApp();else if(isIOS)ask('Install on iPhone or iPad','1. Open this page in Safari.\n2. Tap the Share button (square with an arrow).\n3. Choose Add to Home Screen, then tap Add.','Got it')};
+let drag=null;
+fab.addEventListener('pointerdown',e=>{if(e.target.closest('.fx'))return;const r=fab.getBoundingClientRect();drag={dx:e.clientX-r.left,dy:e.clientY-r.top,x0:e.clientX,y0:e.clientY,moved:false};fab.setPointerCapture(e.pointerId)});
+fab.addEventListener('pointermove',e=>{if(!drag)return;if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.moved=true;fab.classList.add('drag');const r=fab.getBoundingClientRect();
+ fab.style.left=Math.min(Math.max(8,e.clientX-drag.dx),innerWidth-r.width-8)+'px';fab.style.top=Math.min(Math.max(8,e.clientY-drag.dy),innerHeight-r.height-8)+'px';fab.style.right='auto';fab.style.bottom='auto'});
+fab.addEventListener('pointerup',e=>{if(!drag)return;const d=drag;drag=null;fab.classList.remove('drag');
+ if(!d.moved){fabClick();return}
+ const r=fab.getBoundingClientRect(),left=r.left+r.width/2<innerWidth/2;fp={s:left?'l':'r',y:r.top};try{localStorage.setItem('fabPos',JSON.stringify(fp))}catch(x){}
+ fab.style.left=(left?12:innerWidth-r.width-12)+'px';setTimeout(fabPlace,280)});
+fab.addEventListener('pointercancel',()=>{drag=null;fab.classList.remove('drag')});
+fab.querySelector('.fb').addEventListener('click',e=>{if(e.detail===0)fabClick()});
+fab.querySelector('.fx').addEventListener('click',()=>{try{sessionStorage.setItem('fabHide','1')}catch(e){}updateFab();toast('Install button hidden. You can still install from your browser menu.')});
+addEventListener('resize',()=>{if(!fab.hidden)fabPlace()});
+updateFab();
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 const run=async f=>{try{await f()}catch(e){toast(fe(e),'err')}};
 const payDoc=(a,ym)=>({unitId:a.id,unit:a.unit,tenantUid:a.tenantUid,tenantName:a.tenantName,month:ym,amount:Number(a.rent)||0,paidAt:serverTimestamp(),by:S.user.uid});
