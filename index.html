@@ -8,12 +8,12 @@
 <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Apartment Billing"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f6f5f2">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Apartment Billing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#1d2227;--mut:#5d6670;--wood:#b8672b;--char:#363b41;--line:rgba(29,34,39,.12);--glass:rgba(255,255,255,.9);
+:root{--sab:0;--ink:#1d2227;--mut:#5d6670;--wood:#b8672b;--char:#363b41;--line:rgba(29,34,39,.12);--glass:rgba(255,255,255,.9);
 --ok:#16854f;--okb:#dff3e8;--warn:#a96400;--warnb:#fdeccb;--bad:#c72f2f;--badb:#fbdede;--vac:#4f5a68;--vacb:#e6eaef}
 *{box-sizing:border-box}
 html{background:#2a2118}
@@ -192,7 +192,96 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--ink);box
 #fab .fx{position:absolute;top:-9px;right:-6px;width:24px;height:24px;padding:0;border-radius:50%;background:#16181d;color:#fff;border:2px solid #fff;font-size:14px;line-height:1;display:grid;place-items:center;transform:none}
 @keyframes ring{0%{transform:scale(1);opacity:.9}100%{transform:scale(1.35,1.7);opacity:0}}
 @keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+
+/* ===== responsive: phones, tablets, desktops, notches ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{min-height:100dvh;overflow-x:hidden}
+img,svg,video{max-width:100%}
+.nl{display:none}
+.wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));padding-bottom:max(56px,calc(24px + env(safe-area-inset-bottom)))}
+.hero{padding-top:max(6px,env(safe-area-inset-top))}
+.nav{top:max(8px,env(safe-area-inset-top))}
+.nav button{min-width:0}
+.stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.info{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.head{flex-wrap:wrap;gap:8px}.regr{flex-wrap:wrap}
+.plate{gap:8px;min-width:0}.plate>:first-child{min-width:0;overflow-wrap:anywhere}
+.dbody,.msg,.mt,.note{overflow-wrap:anywhere}
+.modal .card{max-height:90dvh}
+.chat .log{height:clamp(260px,55dvh,520px)}
+@media(hover:none){button:hover{transform:none}.door:hover,.stat:hover{transform:none;box-shadow:var(--sh)}}
+/* small phones */
+@media(max-width:480px){
+ input,select,textarea{font-size:16px}
+ .card{padding:16px;border-radius:16px}
+ .hero{min-height:170px}
+ .doors{grid-template-columns:1fr}
+ .row{justify-content:stretch}.modal .row button{flex:1}
+ .mon button{padding:8px 14px}
+ .toast{font-size:13px}
+ #fab .fb{padding:11px 15px 11px 12px;font-size:13px}
+}
+@media(max-width:360px){
+ .wrap{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+ .nav{padding:4px;gap:2px}.nav button{padding:8px 2px}.nav button.out{flex:0 0 40px}
+ .stat b{font-size:22px}.badge{font-size:11px;padding:3px 8px}
+ .tabs button{font-size:13px;padding:8px 6px}
+}
+/* phones in landscape / short screens */
+@media(max-height:500px){.hero{min-height:110px;padding-bottom:12px}h1{font-size:26px}.modal{align-items:flex-start}.modal .card{max-height:96dvh}}
+/* tablets and up: labelled nav */
+@media(min-width:720px){
+ .nl{display:inline}.nav button{gap:8px;font-size:14px}.nav button.out,.nav button[onclick^=toggle],.nav button[onclick^=showFab]{flex:0 0 48px}
+ .nav button .dot{position:static;margin-left:2px}
+ .card{padding:22px}.doors{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+ .tools{flex-direction:row;flex-wrap:wrap;align-items:center}.tools .srch{flex:1 1 260px}.tools .mon{flex:0 1 280px}.tools .chips{flex:1 1 100%}
+}
+/* desktops and large screens */
+@media(min-width:1100px){.wrap{max-width:1180px}.hero{min-height:240px}.stats{grid-template-columns:repeat(6,1fr)}}
+@media(min-width:1600px){.wrap{max-width:1320px}html{font-size:17px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ===== extra responsiveness patch ===== */
+.bg{height:100lvh;min-height:100%}
+#fab{max-width:calc(100vw - 24px)}
+.nav{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.nav::-webkit-scrollbar{display:none}
+.nav button{flex:1 0 auto}
+.modal{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.toast{max-width:100%}
+.stat span,.stat small{overflow-wrap:anywhere}
+.compose textarea{min-width:0}
+@media(pointer:coarse){
+ button,.chips button,.tabs button{min-height:44px}
+ button.s{min-height:40px;padding:8px 14px}
+ input,select,textarea{font-size:16px;min-height:44px}
+ .x{min-width:44px;min-height:44px}
+}
+@media(max-width:340px){
+ h1{font-size:24px}
+ .stats{grid-template-columns:1fr 1fr}
+ .stat{padding:10px 12px}.stat b{font-size:20px}
+ .dact button,.row button{flex:1 1 100%}
+ .reg{flex-direction:column;align-items:flex-start}
+}
+@media(min-width:600px) and (max-width:899px){
+ .stats{grid-template-columns:repeat(3,1fr)}
+ .nl{display:inline}
+ .nav button .dot{position:static}
+}
+@media(max-height:500px) and (orientation:landscape){
+ .chat .log{height:clamp(160px,50dvh,300px)}
+ .nav{top:4px;margin-bottom:8px}
+}
+@media(min-width:1920px){
+ html{font-size:18px}.wrap{max-width:1560px}
+ .doors{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+}
+@media(min-width:2560px){html{font-size:20px}.wrap{max-width:1800px}}
+@media print{
+ .bg,.nav,#fab,#toasts,#loader,.modal,.dact,.tools{display:none!important}
+ body{background:#fff}.card,.door,.stat{box-shadow:none;break-inside:avoid}
+ h1,.sub{color:#000;text-shadow:none}
+}
 </style>
 </head>
 <body>
@@ -270,7 +359,7 @@ const IC={
  chat:'<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
  rent:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
  out:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>'};
-const navBtn=(pg,id,label,extra='')=>`<button class="${pg===id?'on':''}" onclick="page('${id}')" title="${label}" aria-label="${label}">${IC[id]}${extra}</button>`;
+const navBtn=(pg,id,label,extra='')=>`<button class="${pg===id?'on':''}" onclick="page('${id}')" title="${label}" aria-label="${label}">${IC[id]}<span class="nl">${label}</span>${extra}</button>`;
 const soloNav=()=>`<nav class="nav" style="justify-content:flex-end">${logoutBtn().replace('<span class="sep"></span>','')}</nav>`;
 const logoutBtn=()=>{const u=S.user||{};const who=(u.email||u.displayName||'')+' · '+(S.owner?'Owner':'Tenant');return`${installBtn()}${themeBtn()}<span class="sep"></span><button class="out" onclick="logout()" title="Log out (${esc(who)})" aria-label="Log out">${IC.out}</button>`};
 function hero(t,sub){
@@ -436,7 +525,7 @@ const toggleTheme=()=>{const t=document.documentElement.dataset.theme==='dark'?'
 applyTheme(document.documentElement.dataset.theme);
 matchMedia('(prefers-color-scheme:dark)').addEventListener?.('change',e=>{let v=null;try{v=localStorage.getItem('theme')}catch(x){}if(!v){applyTheme(e.matches?'dark':'light');render()}});
 const themeBtn=()=>{const d=document.documentElement.dataset.theme==='dark';return`<button onclick="toggleTheme()" title="${d?'Light':'Dark'} mode" aria-label="Toggle dark mode">${d?IC.sun:IC.moon}</button>`};
-const installBtn=()=>'';
+const installBtn=()=>fabHidden()&&!standalone()&&(window.__ip||isIOS)?`<button onclick="showFab()" title="Show install button" aria-label="Show install button">${IC.dl}</button>`:'';
 const installApp=async()=>{const e=window.__ip;if(!e)return;e.prompt();await e.userChoice.catch(()=>{});window.__ip=null;updateFab()};
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__ip=e;updateFab()});
 addEventListener('appinstalled',()=>{window.__ip=null;toast('App installed');updateFab()});
@@ -448,7 +537,7 @@ const fab=$('#fab'),isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(naviga
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let fp={s:'r',y:null};try{fp=JSON.parse(localStorage.getItem('fabPos'))||fp}catch(e){}
 const fabHidden=()=>{try{return sessionStorage.getItem('fabHide')==='1'}catch(e){return false}};
-function fabPlace(){const r=fab.getBoundingClientRect();let y=fp.y==null?innerHeight-r.height-96:fp.y;y=Math.min(Math.max(10,y),innerHeight-r.height-10);fab.style.top=y+'px';fab.style.bottom='auto';if(fp.s==='l'){fab.style.left='12px';fab.style.right='auto'}else{fab.style.right='12px';fab.style.left='auto'}}
+function fabPlace(){const r=fab.getBoundingClientRect();let y=fp.y==null?Math.round(innerHeight*.6):fp.y;y=Math.min(Math.max(10,y),innerHeight-r.height-10-(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab'))||0));fab.style.top=y+'px';fab.style.bottom='auto';if(fp.s==='l'){fab.style.left='12px';fab.style.right='auto'}else{fab.style.right='12px';fab.style.left='auto'}}
 function updateFab(){const show=!standalone()&&!fabHidden()&&!!(window.__ip||isIOS);fab.hidden=!show;if(show)fabPlace()}
 const fabClick=()=>{if(window.__ip)installApp();else if(isIOS)ask('Install on iPhone or iPad','1. Open this page in Safari.\n2. Tap the Share button (square with an arrow).\n3. Choose Add to Home Screen, then tap Add.','Got it')};
 let drag=null;
@@ -461,9 +550,10 @@ fab.addEventListener('pointerup',e=>{if(!drag)return;const d=drag;drag=null;fab.
  fab.style.left=(left?12:innerWidth-r.width-12)+'px';setTimeout(fabPlace,280)});
 fab.addEventListener('pointercancel',()=>{drag=null;fab.classList.remove('drag')});
 fab.querySelector('.fb').addEventListener('click',e=>{if(e.detail===0)fabClick()});
-fab.querySelector('.fx').addEventListener('click',()=>{try{sessionStorage.setItem('fabHide','1')}catch(e){}updateFab();toast('Install button hidden. You can still install from your browser menu.')});
+fab.querySelector('.fx').addEventListener('click',()=>{try{sessionStorage.setItem('fabHide','1')}catch(e){}updateFab();render();toast('Install button hidden. Tap the download icon in the top bar to bring it back.')});
 addEventListener('resize',()=>{if(!fab.hidden)fabPlace()});
 updateFab();
+const showFab=()=>{try{sessionStorage.removeItem('fabHide')}catch(e){}updateFab();render()};
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 const run=async f=>{try{await f()}catch(e){toast(fe(e),'err')}};
 const payDoc=(a,ym)=>({unitId:a.id,unit:a.unit,tenantUid:a.tenantUid,tenantName:a.tenantName,month:ym,amount:Number(a.rent)||0,paidAt:serverTimestamp(),by:S.user.uid});
@@ -592,7 +682,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
