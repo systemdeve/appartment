@@ -339,13 +339,17 @@ function edit(id){
  const a=S.units.find(x=>x.id===id)||{unit:'',rent:8000,due:off(30),paid:false,tenantUid:''};
  const ppl=S.users.filter(u=>u.status==='approved'&&(u.id===a.tenantUid||!S.units.some(x=>x.tenantUid===u.id)));
  openM(`<h2>${id?'Edit '+esc(a.unit):'Add unit'}</h2>
- <label for="f_unit">Unit name</label><input id="f_unit" value="${esc(a.unit)}">
+ <label for="f_unit">Unit name</label><input id="f_unit" value="${esc(a.unit)}" oninput="checkDup('${id||''}',this.value)" autocomplete="off"><div class="err" id="f_dup" style="margin:6px 0 0"></div>
  <label for="f_ten">Tenant</label><select id="f_ten"><option value="">Empty / vacant</option>${ppl.map(u=>`<option value="${u.id}" ${u.id===a.tenantUid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>
  <label for="f_rent">Monthly rent</label><input id="f_rent" type="number" min="0" value="${a.rent}">
  <label for="f_due">Due date</label><input id="f_due" type="date" value="${a.due}" ${a.paid&&a.tenantUid?'disabled':''}>
  <label for="f_paid">Payment</label><select id="f_paid" ${a.paid&&a.tenantUid?'disabled':''}><option value="0" ${!a.paid?'selected':''}>Not paid</option><option value="1" ${a.paid?'selected':''}>Paid</option></select>${a.paid&&a.tenantUid?'<p class="mut" style="margin:6px 0 0">This payment is recorded and locked. Use Next month for the next bill.</p>':''}
  <div class="row">${id?`<button onclick="nextCycle('${id}')" title="Move due date +1 month and reset to not paid">Next month</button><button onclick="del('${id}')">Delete</button>`:''}<button onclick="closeM()">Cancel</button><button class="p" onclick="saveUnit('${id||''}')">Save</button></div>`)}
-const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim();if(!unit){alert('Enter a unit name.');return}
+const normU=x=>String(x||'').trim().replace(/\s+/g,' ').toLowerCase();
+const dupUnit=(id,name)=>S.units.some(x=>x.id!==id&&normU(x.unit)===normU(name));
+const checkDup=(id,v)=>{const e=$('#f_dup');if(e)e.textContent=v.trim()&&dupUnit(id,v)?'A unit with this name already exists.':''};
+const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim().replace(/\s+/g,' ');if(!unit){alert('Enter a unit name.');return}
+ if(dupUnit(id,unit)){alert('Unit "'+unit+'" already exists. Use a different name.');return}
  const old=id?S.units.find(x=>x.id===id):null,locked=!!(old&&old.paid&&old.tenantUid);
  const t=$('#f_ten').value,u=S.users.find(x=>x.id===t);
  const due=locked?old.due:($('#f_due').value||off(30)),wantPaid=locked||$('#f_paid').value==='1';
@@ -408,7 +412,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
