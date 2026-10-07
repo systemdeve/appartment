@@ -66,6 +66,19 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 .stat.p{border-color:var(--warn)}
 .reg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .reg:last-child{border:0}.regr{display:flex;align-items:center;gap:8px}
+.nav{display:flex;gap:6px;background:rgba(20,16,12,.55);backdrop-filter:blur(10px);padding:6px;border-radius:14px;margin-bottom:14px;position:sticky;top:8px;z-index:3}
+.nav button{flex:1;background:transparent;color:#fff;border:0;display:flex;align-items:center;justify-content:center;gap:8px}
+.nav button:hover{background:rgba(255,255,255,.14)}.nav button.on{background:#fff;color:var(--ink)}
+.dot{background:var(--bad);color:#fff;border-radius:99px;font-size:12px;min-width:20px;padding:1px 6px;font-weight:800}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chips button{padding:5px 12px;font-size:13px;border-radius:99px}
+.chips button.on{background:var(--char);color:#fff;border-color:var(--char)}
+.chat .log{height:min(55vh,430px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f1ede8;border-radius:12px;margin:10px 0}
+.msg{max-width:85%;background:#fff;border-radius:12px;padding:8px 12px;align-self:flex-start;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.msg.me{align-self:flex-end;background:#fbe8d6}.mh{display:flex;gap:8px;align-items:center;font-size:12px}
+.ow{background:var(--wood);color:#fff;padding:1px 9px;border-radius:99px}
+.mt{white-space:pre-wrap;word-break:break-word;font-size:14px;margin-top:3px}
+.compose{display:flex;gap:8px;align-items:flex-end}.compose textarea{flex:1}
+.x{border:0;background:none;padding:0 4px;font-size:16px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -76,7 +89,7 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithPopup,GoogleAuthProvider,signInWithEmailAndPassword,createUserWithEmailAndPassword,updateProfile,sendEmailVerification,sendPasswordResetEmail,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,doc,collection,onSnapshot,getDoc,addDoc,updateDoc,deleteDoc,writeBatch,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getFirestore,doc,collection,onSnapshot,getDoc,addDoc,updateDoc,deleteDoc,writeBatch,query,where,serverTimestamp,orderBy,limitToLast,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ===== 1. PASTE YOUR FIREBASE WEB CONFIG HERE ===== */
 const firebaseConfig={apiKey:"AIzaSyBuYj4hVI9pOfYeQctQFxjJfYfgC7cFWGA",authDomain:"appartment-queen.firebaseapp.com",projectId:"appartment-queen",storageBucket:"appartment-queen.firebasestorage.app",messagingSenderId:"514672392978",appId:"1:514672392978:web:eda50ab2c230d1ae4011cb",measurementId:"G-Q00JM1VWH4"};
@@ -110,15 +123,16 @@ const badge=(k)=>`<span class="badge ${k==='approved'?'paid':k==='declined'?'ove
 if(configured){
  auth=getAuth(initializeApp(firebaseConfig));db=getFirestore();
  onAuthStateChanged(auth,u=>{
-  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],redo:false,msg:'',idData:''});
+  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
   S.owner=!!u&&u.emailVerified&&OWNER_EMAILS.includes((u.email||'').toLowerCase());
   if(!u||(!S.owner&&OWNER_EMAILS.includes((u.email||'').toLowerCase()))){S.ready=true;return render()}
   const bad=e=>{S.ready=true;S.msg=fe(e);render()};
   if(S.owner){
    unsubs.push(onSnapshot(collection(db,'users'),s=>{S.users=s.docs.map(d=>({id:d.id,...d.data()}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'units'),s=>{S.units=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.unit.localeCompare(b.unit,undefined,{numeric:true}));S.ready=true;render()},bad));
+   ensureChat();
   }else{
-   unsubs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.profile=s.exists()?s.data():null;S.ready=true;render()},bad));
+   unsubs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.profile=s.exists()?s.data():null;S.ready=true;if(S.profile?.status==='approved')ensureChat();render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'units'),where('tenantUid','==',u.uid)),s=>{S.unit=s.docs[0]?{id:s.docs[0].id,...s.docs[0].data()}:null;render()},bad));
   }
  });
@@ -128,14 +142,15 @@ if(configured){
 function hero(t,sub){
  const u=S.user;
  return`<div class="hero"><div class="top"><div></div>${u?`<div class="who">${esc(u.email||u.displayName)} · ${S.owner?'Owner':'Tenant'}<button class="ghost" onclick="logout()">Log out</button></div>`:''}</div><div><h1>${t}</h1><p class="sub">${sub}</p></div></div>`}
-function render(){
+function render0(){
  const app=$('#app');
  if(!configured){app.innerHTML=hero('Apartment Billing','Almost ready')+`<div class="card login"><h2>Add your Firebase config</h2><p>Open this file, find <b>firebaseConfig</b> near the top of the script, and paste your project's web app values. Then set <b>OWNER_EMAILS</b>.</p></div>`;return}
  if(!S.ready){app.innerHTML=hero('Apartment Billing','Loading…');return}
  if(!S.user){app.innerHTML=hero('Apartment Billing','Verified tenants, clear rent status.')+authView();return}
  if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
  if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();return}
- app.innerHTML=hero('Your rent','Register once, then see what you owe and when.')+tenantApp();
+ const ok=S.profile?.status==='approved',pg=S.page==='chat'?'chat':'rent';
+ app.innerHTML=hero(pg==='chat'?'Group chat':'Your rent',pg==='chat'?'Talk with the owner and other tenants.':'Register once, then see what you owe and when.')+(ok?tenantNav(pg):'')+(ok&&pg==='chat'?chatView():tenantApp());
 }
 function authView(){
  const up=S.tab==='up';
@@ -197,14 +212,24 @@ function tenantView(a){
 
 /* owner */
 function ownerView(){
+ const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat'].includes(S.page)?S.page:'units';
+ const nav=`<nav class="nav"><button class="${pg==='units'?'on':''}" onclick="page('units')">Units</button><button class="${pg==='regs'?'on':''}" onclick="page('regs')">Registrations${pend?`<span class="dot">${pend}</span>`:''}</button><button class="${pg==='chat'?'on':''}" onclick="page('chat')">Group chat${pg==='chat'?'':unreadBadge()}</button></nav>`;
+ return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():unitsView());
+}
+const page=p=>{S.page=p;render()},filt=k=>{S.filter=k;render()};
+function regsView(){
+ const f=S.filter||'pending',cnt=k=>S.users.filter(u=>u.status===k).length;
+ const list=S.users.filter(u=>f==='all'||u.status===f).sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0));
+ const chip=(k,l,n)=>`<button class="${f===k?'on':''}" onclick="filt('${k}')">${l} (${n})</button>`;
+ return`<div class="card"><h2>Tenant registrations</h2><div class="chips">${chip('pending','Pending',cnt('pending'))}${chip('approved','Approved',cnt('approved'))}${chip('declined','Declined',cnt('declined'))}${chip('all','All',S.users.length)}</div>
+ ${list.length?list.map(u=>`<div class="reg"><div><b>${esc(u.name)}</b><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${when(u.submittedAt)}</div>${u.status==='declined'&&u.reason?`<div class="mut">Reason: ${esc(u.reason)}</div>`:''}</div><div class="regr">${badge(u.status)}<button class="s ${u.status==='pending'?'p':''}" onclick="review('${u.id}')">${u.status==='pending'?'Review ID':'View'}</button></div></div>`).join(''):'<p class="mut" style="margin:0">Nothing here yet.</p>'}</div>`}
+function unitsView(){
  const A=S.units,c=k=>A.filter(a=>status(a)===k).length,pend=S.users.filter(u=>u.status==='pending').length;
  const exp=A.filter(a=>!vacant(a)&&!a.paid).reduce((s,a)=>s+Number(a.rent),0);
- const order={pending:0,declined:1,approved:2},U=[...S.users].sort((a,b)=>order[a.status]-order[b.status]);
- return`${S.msg?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:''}<div class="stats">
+ return`<div class="stats">
  <div class="stat"><b>${A.length}</b><span>Total units</span></div><div class="stat v"><b>${c('vacant')}</b><span>Vacant</span></div>
  <div class="stat o"><b>${c('overdue')}</b><span>Overdue</span></div><div class="stat u"><b>${money(exp)}</b><span>Unpaid total</span></div>
  <div class="stat p"><b>${pend}</b><span>Waiting for review</span></div></div>
- <div class="card"><h2>Tenant registrations</h2>${U.length?U.map(u=>`<div class="reg"><div><b>${esc(u.name)}</b><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${when(u.submittedAt)}</div></div><div class="regr">${badge(u.status)}<button class="s ${u.status==='pending'?'p':''}" onclick="review('${u.id}')">${u.status==='pending'?'Review ID':'View'}</button></div></div>`).join(''):'<p class="mut" style="margin:0">No registrations yet. Tenants appear here after they upload their ID.</p>'}</div>
  <div class="card"><div class="head"><h2 style="margin:0">Units</h2><button class="p s" onclick="edit()">Add unit</button></div>
  ${A.length?`<div class="doors">${A.map(a=>{const s=status(a);return`<div class="door s-${s}"><div class="plate">${esc(a.unit)}${badge(s)}</div>
  <div class="dbody"><div class="n">${vacant(a)?'Empty unit':esc(a.tenantName)}</div>Rent ${money(a.rent)}<br>${vacant(a)?'Ready for a new tenant':'Due '+fmt(a.due)+(s==='overdue'?' · '+(-days(a))+' days late':'')}</div>
@@ -216,20 +241,20 @@ const openM=h=>{$('#mbody').innerHTML=h;$('#modal').classList.add('on')};
 async function review(uid){
  const u=S.users.find(x=>x.id===uid);if(!u)return;
  openM('<p>Loading ID…</p>');
- let img='';try{const s=await getDoc(doc(db,'ids',uid));img=s.exists()?s.data().image:''}catch(e){}
+ let img='';try{const d=await getDoc(doc(db,'ids',uid));img=d.exists()?d.data().image:''}catch(e){}
  const free=S.units.filter(a=>vacant(a)||a.tenantUid===uid);
- openM(`<h2>${esc(u.name)}</h2><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${badge(u.status).replace(/<[^>]+>/g,'')}</div>
- ${img?`<img class="idimg" src="${img}" alt="Uploaded ID">`:'<p class="err">No ID image found.</p>'}
- ${u.status==='declined'?`<p class="mut">Declined: ${esc(u.reason)}</p>`:''}
+ const head=`<h2>${esc(u.name)}</h2><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${LABEL[u.status]}</div>${img?`<img class="idimg" src="${img}" alt="Uploaded ID">`:'<p class="err">No ID image found.</p>'}`;
+ if(u.status==='approved')return openM(head+`<p class="mut">This registration is approved, so it can't be declined. To change the apartment, use Edit on the unit.</p><div class="row"><button onclick="closeM()">Close</button></div>`);
+ openM(head+(u.status==='declined'?`<p class="mut">Declined: ${esc(u.reason)}</p>`:'')+`
  <label for="r_unit">Assign apartment (optional)</label><select id="r_unit"><option value="">Assign later</option>${free.map(a=>`<option value="${a.id}">${esc(a.unit)}</option>`).join('')}</select>
- <label for="r_reason">Reason (required to decline)</label><textarea id="r_reason" rows="2" placeholder="e.g. ID photo is blurry or the name does not match"></textarea>
+ ${u.status==='pending'?`<label for="r_reason">Reason (required to decline)</label><textarea id="r_reason" rows="2" placeholder="e.g. ID photo is blurry or the name does not match"></textarea>`:''}
  <div class="err" id="rmsg"></div>
- <div class="row"><button onclick="closeM()">Close</button><button onclick="decline('${uid}')">Decline</button><button class="p" onclick="approve('${uid}')">Approve</button></div>`)}
+ <div class="row"><button onclick="closeM()">Close</button>${u.status==='pending'?`<button onclick="decline('${uid}')">Decline</button>`:''}<button class="p" onclick="approve('${uid}')">Approve</button></div>`)}
 const approve=uid=>run(async()=>{const u=S.users.find(x=>x.id===uid),unit=$('#r_unit').value,b=writeBatch(db);
  b.update(doc(db,'users',uid),{status:'approved',reason:'',reviewedAt:serverTimestamp()});
  if(unit)b.update(doc(db,'units',unit),{tenantUid:uid,tenantName:u.name,paid:false});
  await b.commit();closeM()});
-const decline=uid=>run(async()=>{const r=$('#r_reason').value.trim();if(!r){$('#rmsg').textContent='Write a reason so the tenant knows what to fix.';return}
+const decline=uid=>run(async()=>{if(S.users.find(x=>x.id===uid)?.status==='approved')return alert('Approved registrations cannot be declined.');const r=$('#r_reason').value.trim();if(!r){$('#rmsg').textContent='Write a reason so the tenant knows what to fix.';return}
  await updateDoc(doc(db,'users',uid),{status:'declined',reason:r,reviewedAt:serverTimestamp()});closeM()});
 function edit(id){
  const a=S.units.find(x=>x.id===id)||{unit:'',rent:8000,due:off(30),paid:false,tenantUid:''};
@@ -248,6 +273,45 @@ const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim();if(!unit){
 const nextCycle=id=>run(async()=>{const a=S.units.find(x=>x.id===id),d=new Date(a.due+'T00:00:00');d.setMonth(d.getMonth()+1);await updateDoc(doc(db,'units',id),{due:iso(d),paid:false});closeM()});
 const del=id=>run(async()=>{if(confirm('Delete this unit?')){await deleteDoc(doc(db,'units',id));closeM()}});
 
+
+/* ---- group chat ---- */
+const ms=t=>t?.toMillis?.()??0;
+const tm=t=>{const d=t?.toDate?.();return d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''};
+const unread=()=>S.user?S.msgs.filter(m=>m.uid!==S.user.uid&&ms(m.createdAt)>(S.lastRead||0)).length:0;
+const unreadBadge=()=>{const n=unread();return n?`<span class="dot">${n>99?'99+':n}</span>`:''};
+function tenantNav(pg){return`<nav class="nav"><button class="${pg==='rent'?'on':''}" onclick="page('rent')">My rent</button><button class="${pg==='chat'?'on':''}" onclick="page('chat')">Group chat${pg==='chat'?'':unreadBadge()}</button></nav>`}
+function ensureChat(){
+ if(S.chatOn||!S.user)return;S.chatOn=true;
+ unsubs.push(onSnapshot(query(collection(db,'messages'),orderBy('createdAt'),limitToLast(100)),s=>{S.msgs=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},e=>{S.msg=fe(e);render()}));
+ unsubs.push(onSnapshot(doc(db,'reads',S.user.uid),s=>{S.lastRead=s.exists()?ms(s.data().lastRead):0;render()},()=>{}));
+}
+let marking=false;
+function markRead(){if(marking)return;marking=true;setDoc(doc(db,'reads',S.user.uid),{lastRead:serverTimestamp()}).catch(()=>{}).finally(()=>setTimeout(()=>marking=false,800))}
+function chatView(){
+ const me=S.user.uid;
+ const items=S.msgs.map(m=>`<div class="msg ${m.uid===me?'me':''}"><div class="mh">${m.fromOwner?'<b class="ow">Owner</b>':`<b>${esc(m.name)}</b>`}<span class="mut">${tm(m.createdAt)}</span>${S.owner?`<button class="x" onclick="delMsg('${m.id}')" aria-label="Delete message">×</button>`:''}</div><div class="mt">${esc(m.text)}</div></div>`).join('');
+ return`<div class="card chat"><h2>Group chat</h2><div class="mut">Everyone here is the owner or a verified tenant.</div>
+ <div class="log" id="log">${items||'<p class="mut">No messages yet. Say hello.</p>'}</div>
+ <div class="compose"><textarea id="m_text" rows="1" maxlength="500" placeholder="Write a message" oninput="S.draft=this.value" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}">${esc(S.draft||'')}</textarea><button class="p" onclick="send()">Send</button></div>
+ <div class="err" id="msg">${esc(S.msg)}</div></div>`}
+async function send(){
+ const t=$('#m_text'),text=t.value.trim();if(!text)return;
+ const name=S.owner?'Owner':(S.profile?.name||'');
+ t.value='';S.draft='';
+ try{await addDoc(collection(db,'messages'),{text,uid:S.user.uid,name,fromOwner:S.owner,createdAt:serverTimestamp()})}
+ catch(e){t.value=text;S.draft=text;msg(fe(e))}}
+const delMsg=id=>run(async()=>{if(confirm('Delete this message for everyone?'))await deleteDoc(doc(db,'messages',id))});
+function render(){
+ const had=document.activeElement?.id==='m_text';
+ render0();
+ const lg=$('#log');if(lg)lg.scrollTop=lg.scrollHeight;
+ if(had){const t=$('#m_text');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length)}}
+ const onChat=!!lg,n=unread();
+ document.title=(n?`(${n}) `:'')+'Apartment Billing';
+ if(onChat&&n>0&&!document.hidden)markRead();
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)render()});
+
 /* ---- auth actions ---- */
 const google=()=>{const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});return signInWithPopup(auth,pr).catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg(fe(e))});}
 async function emailAuth(){
@@ -259,7 +323,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{S,render,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
