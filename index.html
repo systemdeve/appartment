@@ -35,7 +35,7 @@ label{display:block;font-size:13px;font-weight:700;color:var(--mut);margin:12px 
 .stat b{font-size:24px;display:block;font-weight:800}.stat span{color:var(--mut);font-size:13px}
 .stat.v{border-color:var(--vac)}.stat.o{border-color:var(--bad)}.stat.u{border-color:var(--wood)}
 .badge{padding:3px 10px;border-radius:99px;font-size:12px;font-weight:800;white-space:nowrap}
-.paid{background:var(--okb);color:var(--ok)}.due,.unpaid{background:var(--warnb);color:var(--warn)}.overdue{background:var(--badb);color:var(--bad)}.vacant{background:var(--vacb);color:var(--vac)}
+.paid{background:var(--okb);color:var(--ok)}.due,.unpaid{background:var(--warnb);color:var(--warn)}.overdue{background:var(--badb);color:var(--bad)}.vacant,.none{background:var(--vacb);color:var(--vac)}
 .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .doors{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .door{background:#fff;border-radius:14px;overflow:hidden;border:1px solid var(--line);display:flex;flex-direction:column}
@@ -82,6 +82,14 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 .nav button.out{flex:0 0 52px;color:#ffb4b4}
 .nav button.out:hover{background:rgba(199,47,47,.55);color:#fff}
 .hero{min-height:170px;justify-content:flex-end}
+
+.stat.g{border-color:var(--ok)}.stat small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
+.tools{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.srch{position:relative}.srch svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:var(--mut);fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none}
+.srch input{padding-left:36px}
+.mon{display:flex;gap:6px;align-items:center}.mon input{flex:1;min-width:0}.mon button{padding:8px 12px}
+.tools .chips{margin:0}
+.empty{grid-column:1/-1;text-align:center;color:var(--mut);padding:18px 0;font-size:14px}
 .chat .log{height:min(55vh,430px);overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f1ede8;border-radius:12px;margin:10px 0}
 .msg{max-width:85%;background:#fff;border-radius:12px;padding:8px 12px;align-self:flex-start;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .msg.me{align-self:flex-end;background:#fbe8d6}.mh{display:flex;gap:8px;align-items:center;font-size:12px}
@@ -99,7 +107,7 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithPopup,GoogleAuthProvider,signInWithEmailAndPassword,createUserWithEmailAndPassword,updateProfile,sendEmailVerification,sendPasswordResetEmail,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import {getFirestore,doc,collection,onSnapshot,getDoc,addDoc,updateDoc,deleteDoc,writeBatch,query,where,serverTimestamp,orderBy,limitToLast,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {getFirestore,doc,collection,onSnapshot,getDoc,addDoc,updateDoc,deleteDoc,writeBatch,query,where,serverTimestamp,orderBy,limitToLast,setDoc,deleteField} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* ===== 1. PASTE YOUR FIREBASE WEB CONFIG HERE ===== */
 const firebaseConfig={apiKey:"AIzaSyBuYj4hVI9pOfYeQctQFxjJfYfgC7cFWGA",authDomain:"appartment-queen.firebaseapp.com",projectId:"appartment-queen",storageBucket:"appartment-queen.firebasestorage.app",messagingSenderId:"514672392978",appId:"1:514672392978:web:eda50ab2c230d1ae4011cb",measurementId:"G-Q00JM1VWH4"};
@@ -115,7 +123,7 @@ const money=n=>'₱'+Number(n||0).toLocaleString();
 const when=t=>{const d=t?.toDate?.();return d?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):'just now'};
 const configured=!firebaseConfig.apiKey.startsWith('YOUR');
 let auth,db,unsubs=[];
-const S={user:null,owner:false,ready:false,profile:null,unit:null,users:[],units:[],tab:'in',msg:'',idData:'',redo:false};
+const S={pays:[],q:'',st:'all',month:iso(new Date()).slice(0,7),user:null,owner:false,ready:false,profile:null,unit:null,users:[],units:[],tab:'in',msg:'',idData:'',redo:false};
 const msg=t=>{S.msg=t;const e=$('#msg');if(e)e.textContent=t};
 const fe=e=>({'auth/invalid-credential':'Wrong email or password.','auth/wrong-password':'Wrong email or password.','auth/user-not-found':'Wrong email or password.',
  'auth/email-already-in-use':'That email already has an account. Log in instead.','auth/weak-password':'Use a password with at least 6 characters.','auth/invalid-email':'Enter a valid email address.',
@@ -126,23 +134,25 @@ const fe=e=>({'auth/invalid-credential':'Wrong email or password.','auth/wrong-p
 const vacant=a=>!a.tenantUid;
 const days=a=>Math.round((new Date(a.due+'T00:00:00')-new Date(iso(new Date())+'T00:00:00'))/864e5);
 const status=a=>{if(vacant(a))return'vacant';if(a.paid)return'paid';const d=days(a);return d<0?'overdue':d<=3?'due':'unpaid'};
-const LABEL={paid:'Paid',due:'Due soon',unpaid:'Not paid',overdue:'Overdue',vacant:'Vacant',pending:'Pending',approved:'Approved',declined:'Declined'};
+const LABEL={paid:'Paid',due:'Due soon',unpaid:'Not paid',overdue:'Overdue',vacant:'Vacant',none:'No bill',pending:'Pending',approved:'Approved',declined:'Declined'};
 const badge=(k)=>`<span class="badge ${k==='approved'?'paid':k==='declined'?'overdue':k==='pending'?'due':k}">${LABEL[k]}</span>`;
 
 /* ---- auth state ---- */
 if(configured){
  auth=getAuth(initializeApp(firebaseConfig));db=getFirestore();
  onAuthStateChanged(auth,u=>{
-  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
+  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],pays:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
   S.owner=!!u&&u.emailVerified&&OWNER_EMAILS.includes((u.email||'').toLowerCase());
   if(!u||(!S.owner&&OWNER_EMAILS.includes((u.email||'').toLowerCase()))){S.ready=true;return render()}
   const bad=e=>{S.ready=true;S.msg=fe(e);render()};
   if(S.owner){
    unsubs.push(onSnapshot(collection(db,'users'),s=>{S.users=s.docs.map(d=>({id:d.id,...d.data()}));render()},bad));
+   unsubs.push(onSnapshot(collection(db,'payments'),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'units'),s=>{S.units=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.unit.localeCompare(b.unit,undefined,{numeric:true}));S.ready=true;render()},bad));
    ensureChat();
   }else{
    unsubs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.profile=s.exists()?s.data():null;S.ready=true;if(S.profile?.status==='approved')ensureChat();render()},bad));
+   unsubs.push(onSnapshot(query(collection(db,'payments'),where('tenantUid','==',u.uid)),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'units'),where('tenantUid','==',u.uid)),s=>{S.unit=s.docs[0]?{id:s.docs[0].id,...s.docs[0].data()}:null;render()},bad));
   }
  });
@@ -167,7 +177,7 @@ function render0(){
  if(!S.ready){app.innerHTML=hero('Apartment Billing','Loading…');return}
  if(!S.user){app.innerHTML=hero('Apartment Billing','Verified tenants, clear rent status.')+authView();return}
  if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+soloNav()+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
- if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();return}
+ if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();paintUnits();return}
  const ok=S.profile?.status==='approved',pg=S.page==='chat'?'chat':'rent';
  app.innerHTML=hero(pg==='chat'?'Group chat':'Your rent',pg==='chat'?'Talk with the owner and other tenants.':'Register once, then see what you owe and when.')+(ok?tenantNav(pg):soloNav())+(ok&&pg==='chat'?chatView():tenantApp());
 }
@@ -227,7 +237,18 @@ function tenantView(a){
  const n={overdue:`Overdue by ${-d} day(s): ${money(a.rent)}`,due:`Payment due ${d===0?'today':'in '+d+' day(s)'}: ${money(a.rent)}`,unpaid:`Upcoming payment on ${fmt(a.due)}`,paid:'Payment received. Nothing to do.'}[s];
  return`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
  <div class="card"><h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
- <div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div><p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`}
+ <div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div><p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>${payHistory(a,s)}`}
+function payHistory(a,s){
+ const H={};
+ Object.entries(a.payments||{}).forEach(([k,v])=>{const ym=k.slice(1,5)+'-'+k.slice(5);H[ym]={s:'paid',amt:Number(v)}});
+ S.pays.forEach(p=>{H[p.month]={s:'paid',amt:Number(p.amount),at:p.paidAt?iso(new Date(ms(p.paidAt))):''}});
+ const cur=(a.due||'').slice(0,7);
+ if(cur&&!H[cur])H[cur]={s,amt:Number(a.rent)||0,due:a.due};
+ const rows=Object.entries(H).sort((x,y)=>y[0].localeCompare(x[0]));
+ const total=rows.filter(r=>r[1].s==='paid').reduce((t,r)=>t+r[1].amt,0);
+ return`<div class="card"><div class="head"><h2 style="margin:0">Payment history</h2><span class="mut">Total paid: <b>${money(total)}</b></span></div>
+ ${rows.map(([ym,r])=>`<div class="reg"><div><b>${monthLabel(ym)}</b>${r.at?`<br><span class="mut">Paid ${fmt(r.at)}</span>`:r.due?`<br><span class="mut">Due ${fmt(r.due)}</span>`:''}</div><div class="regr"><b>${money(r.amt)}</b>${badge(r.s)}</div></div>`).join('')||'<p class="mut" style="margin:0">No payments recorded yet.</p>'}
+ <p class="mut" style="margin:10px 0 0">Payment records are permanent and cannot be changed.</p></div>`}
 
 /* owner */
 function ownerView(){
@@ -242,19 +263,58 @@ function regsView(){
  const chip=(k,l,n)=>`<button class="${f===k?'on':''}" onclick="filt('${k}')">${l} (${n})</button>`;
  return`<div class="card"><h2>Tenant registrations</h2><div class="chips">${chip('pending','Pending',cnt('pending'))}${chip('approved','Approved',cnt('approved'))}${chip('declined','Declined',cnt('declined'))}${chip('all','All',S.users.length)}</div>
  ${list.length?list.map(u=>`<div class="reg"><div><b>${esc(u.name)}</b><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${when(u.submittedAt)}</div>${u.status==='declined'&&u.reason?`<div class="mut">Reason: ${esc(u.reason)}</div>`:''}</div><div class="regr">${badge(u.status)}<button class="s ${u.status==='pending'?'p':''}" onclick="review('${u.id}')">${u.status==='pending'?'Review ID':'View'}</button></div></div>`).join(''):'<p class="mut" style="margin:0">Nothing here yet.</p>'}</div>`}
+const mkey=ym=>'m'+ym.replace('-','');
+// status of a unit for a chosen month: uses recorded payments, else the unit's current billing cycle
+const payId=(uid,ym)=>uid+'_'+ym;
+const hasPay=(uid,ym)=>S.pays.some(p=>p.id===payId(uid,ym))||S.units.some(x=>x.id===uid&&x.payments&&x.payments[mkey(ym)]!=null);
+function mstat(a,ym){
+ const p=S.pays.find(x=>x.unitId===a.id&&x.month===ym),rec=p?p.amount:a.payments&&a.payments[mkey(ym)];
+ if(rec!=null)return{s:'paid',amt:Number(rec)};
+ if(vacant(a))return{s:'vacant',amt:0};
+ if((a.due||'').slice(0,7)===ym)return{s:status(a),amt:Number(a.rent)||0};
+ return{s:'none',amt:0}}
+const monthLabel=ym=>new Date(ym+'-01T00:00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'});
+const shiftMonth=n=>{const[y,m]=S.month.split('-').map(Number),d=new Date(y,m-1+n,1);S.month=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');paintUnits();const i=$('#u_month');if(i)i.value=S.month};
+const setMonth=v=>{if(!v)return;S.month=v;paintUnits()};
+const setQ=v=>{S.q=v;paintUnits()};
+const setSt=k=>{S.st=k;paintUnits();document.querySelectorAll('#u_chips button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))};
+function paintUnits(){
+ const ss=$('#u_stats'),ll=$('#u_list');if(!ss||!ll)return;
+ const A=S.units,ym=S.month,pend=S.users.filter(u=>u.status==='pending').length;
+ const M=A.map(a=>({a,...mstat(a,ym)}));
+ const sum=f=>M.filter(f).reduce((t,x)=>t+x.amt,0),cnt=f=>M.filter(f).length;
+ const un=x=>x.s==='unpaid'||x.s==='due';
+ ss.innerHTML=`<div class="stat g"><b>${money(sum(x=>x.s==='paid'))}</b><span>Income received</span><small>${monthLabel(ym)}</small></div>
+ <div class="stat"><b>${cnt(x=>x.s==='paid')}</b><span>Paid units</span></div>
+ <div class="stat u"><b>${cnt(un)}</b><span>Unpaid</span><small>${money(sum(un))}</small></div>
+ <div class="stat o"><b>${cnt(x=>x.s==='overdue')}</b><span>Overdue</span><small>${money(sum(x=>x.s==='overdue'))}</small></div>
+ <div class="stat v"><b>${cnt(x=>x.s==='vacant')}</b><span>Vacant</span><small>${A.length} total units</small></div>
+ <div class="stat p"><b>${pend}</b><span>Waiting for review</span></div>`;
+ const q=S.q.trim().toLowerCase();
+ const list=M.filter(x=>{
+  if(S.st==='unpaid'?!un(x):S.st!=='all'&&x.s!==S.st)return false;
+  if(!q)return true;
+  return[x.a.unit,x.a.tenantName,LABEL[x.s],x.a.rent,x.s==='due'?'unpaid':''].join(' ').toLowerCase().includes(q)});
+ ll.innerHTML=list.length?list.map(({a,s})=>{const cur=(a.due||'').slice(0,7)===ym;return`<div class="door s-${s}"><div class="plate">${esc(a.unit)}${badge(s)}</div>
+ <div class="dbody"><div class="n">${vacant(a)?'Empty unit':esc(a.tenantName)}</div>Rent ${money(a.rent)}<br>${vacant(a)?'Ready for a new tenant':s==='none'?'No bill for '+monthLabel(ym):s==='paid'&&!cur?'Paid for '+monthLabel(ym):'Due '+fmt(a.due)+(s==='overdue'?' · '+(-days(a))+' days late':'')}</div>
+ <div class="dact">${(s==='unpaid'||s==='due'||s==='overdue')?`<button class="s p" onclick="markPaid('${a.id}')">Mark paid</button>`:''}<button class="s" onclick="edit('${a.id}')">Edit</button></div></div>`}).join(''):`<div class="empty">${A.length?'No units match your filter.':'Add your first unit to start billing.'}</div>`}
 function unitsView(){
- const A=S.units,c=k=>A.filter(a=>status(a)===k).length,pend=S.users.filter(u=>u.status==='pending').length;
- const exp=A.filter(a=>!vacant(a)&&!a.paid).reduce((s,a)=>s+Number(a.rent),0);
- return`<div class="stats">
- <div class="stat"><b>${A.length}</b><span>Total units</span></div><div class="stat v"><b>${c('vacant')}</b><span>Vacant</span></div>
- <div class="stat o"><b>${c('overdue')}</b><span>Overdue</span></div><div class="stat u"><b>${money(exp)}</b><span>Unpaid total</span></div>
- <div class="stat p"><b>${pend}</b><span>Waiting for review</span></div></div>
+ const chip=(k,l)=>`<button data-k="${k}" class="${S.st===k?'on':''}" onclick="setSt('${k}')">${l}</button>`;
+ return`<div class="stats" id="u_stats"></div>
  <div class="card"><div class="head"><h2 style="margin:0">Units</h2><button class="p s" onclick="edit()">Add unit</button></div>
- ${A.length?`<div class="doors">${A.map(a=>{const s=status(a);return`<div class="door s-${s}"><div class="plate">${esc(a.unit)}${badge(s)}</div>
- <div class="dbody"><div class="n">${vacant(a)?'Empty unit':esc(a.tenantName)}</div>Rent ${money(a.rent)}<br>${vacant(a)?'Ready for a new tenant':'Due '+fmt(a.due)+(s==='overdue'?' · '+(-days(a))+' days late':'')}</div>
- <div class="dact">${!vacant(a)&&!a.paid?`<button class="s p" onclick="markPaid('${a.id}')">Mark paid</button>`:''}<button class="s" onclick="edit('${a.id}')">Edit</button></div></div>`}).join('')}</div>`:'<p class="mut" style="margin:0">Add your first unit to start billing.</p>'}</div>`}
+ <div class="tools">
+  <div class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="u_q" type="search" placeholder="Filter by unit, tenant or status…" autocomplete="off" value="${esc(S.q)}" oninput="setQ(this.value)" aria-label="Filter units"></div>
+  <div class="mon"><button onclick="shiftMonth(-1)" aria-label="Previous month">‹</button><input id="u_month" type="month" value="${S.month}" onchange="setMonth(this.value)" aria-label="Select month"><button onclick="shiftMonth(1)" aria-label="Next month">›</button></div>
+  <div class="chips" id="u_chips">${chip('all','All')}${chip('paid','Paid')}${chip('unpaid','Unpaid')}${chip('overdue','Overdue')}${chip('vacant','Vacant')}</div>
+ </div>
+ <div class="doors" id="u_list"></div></div>`}
 const run=async f=>{try{await f()}catch(e){alert(fe(e))}};
-const markPaid=id=>run(()=>updateDoc(doc(db,'units',id),{paid:true}));
+const payDoc=(a,ym)=>({unitId:a.id,unit:a.unit,tenantUid:a.tenantUid,tenantName:a.tenantName,month:ym,amount:Number(a.rent)||0,paidAt:serverTimestamp(),by:S.user.uid});
+const markPaid=id=>run(async()=>{const a=S.units.find(x=>x.id===id),ym=(a.due||'').slice(0,7);
+ if(!confirm('Mark '+a.unit+' as paid for '+monthLabel(ym)+'?\nPayment records are permanent and cannot be edited or deleted.'))return;
+ const b=writeBatch(db);b.update(doc(db,'units',id),{paid:true});
+ if(!hasPay(id,ym))b.set(doc(db,'payments',payId(id,ym)),payDoc(a,ym));
+ await b.commit()});
 const closeM=()=>$('#modal').classList.remove('on');
 const openM=h=>{$('#mbody').innerHTML=h;$('#modal').classList.add('on')};
 async function review(uid){
@@ -282,13 +342,19 @@ function edit(id){
  <label for="f_unit">Unit name</label><input id="f_unit" value="${esc(a.unit)}">
  <label for="f_ten">Tenant</label><select id="f_ten"><option value="">Empty / vacant</option>${ppl.map(u=>`<option value="${u.id}" ${u.id===a.tenantUid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>
  <label for="f_rent">Monthly rent</label><input id="f_rent" type="number" min="0" value="${a.rent}">
- <label for="f_due">Due date</label><input id="f_due" type="date" value="${a.due}">
- <label for="f_paid">Payment</label><select id="f_paid"><option value="0" ${!a.paid?'selected':''}>Not paid</option><option value="1" ${a.paid?'selected':''}>Paid</option></select>
+ <label for="f_due">Due date</label><input id="f_due" type="date" value="${a.due}" ${a.paid&&a.tenantUid?'disabled':''}>
+ <label for="f_paid">Payment</label><select id="f_paid" ${a.paid&&a.tenantUid?'disabled':''}><option value="0" ${!a.paid?'selected':''}>Not paid</option><option value="1" ${a.paid?'selected':''}>Paid</option></select>${a.paid&&a.tenantUid?'<p class="mut" style="margin:6px 0 0">This payment is recorded and locked. Use Next month for the next bill.</p>':''}
  <div class="row">${id?`<button onclick="nextCycle('${id}')" title="Move due date +1 month and reset to not paid">Next month</button><button onclick="del('${id}')">Delete</button>`:''}<button onclick="closeM()">Cancel</button><button class="p" onclick="saveUnit('${id||''}')">Save</button></div>`)}
 const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim();if(!unit){alert('Enter a unit name.');return}
+ const old=id?S.units.find(x=>x.id===id):null,locked=!!(old&&old.paid&&old.tenantUid);
  const t=$('#f_ten').value,u=S.users.find(x=>x.id===t);
- const d={unit,tenantUid:t,tenantName:u?u.name:'',rent:+$('#f_rent').value||0,due:$('#f_due').value||off(30),paid:t?$('#f_paid').value==='1':false};
- id?await updateDoc(doc(db,'units',id),d):await addDoc(collection(db,'units'),d);closeM()});
+ const due=locked?old.due:($('#f_due').value||off(30)),wantPaid=locked||$('#f_paid').value==='1';
+ const d={unit,tenantUid:t,tenantName:u?u.name:'',rent:+$('#f_rent').value||0,due,paid:t?wantPaid:false};
+ const ref=id?doc(db,'units',id):doc(collection(db,'units')),ym=due.slice(0,7),b=writeBatch(db);
+ if(d.paid&&!hasPay(ref.id,ym)){if(!confirm('Saving as Paid creates a permanent payment record for '+monthLabel(ym)+'. It cannot be edited or deleted. Continue?'))return;
+  b.set(doc(db,'payments',payId(ref.id,ym)),payDoc({...d,id:ref.id},ym))}
+ id?b.update(ref,d):b.set(ref,d);
+ await b.commit();closeM()});
 const nextCycle=id=>run(async()=>{const a=S.units.find(x=>x.id===id),d=new Date(a.due+'T00:00:00');d.setMonth(d.getMonth()+1);await updateDoc(doc(db,'units',id),{due:iso(d),paid:false});closeM()});
 const del=id=>run(async()=>{if(confirm('Delete this unit?')){await deleteDoc(doc(db,'units',id));closeM()}});
 
@@ -342,7 +408,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
