@@ -320,7 +320,7 @@ const msg=t=>{S.msg=t;const e=$('#msg');if(e)e.textContent=t};
 const fe=e=>({'auth/invalid-credential':'Wrong email or password.','auth/wrong-password':'Wrong email or password.','auth/user-not-found':'Wrong email or password.',
  'auth/email-already-in-use':'That email already has an account. Log in instead.','auth/weak-password':'Use a password with at least 6 characters.','auth/invalid-email':'Enter a valid email address.',
  'auth/unauthorized-domain':'Add this website to Authentication > Settings > Authorized domains in Firebase.','auth/operation-not-allowed':'Turn on this sign-in method in Firebase Authentication.',
- 'auth/too-many-requests':'Too many tries. Wait a moment and try again.','permission-denied':'Not allowed. Check your Firestore rules and owner email.'}[e.code]||e.message||'Something went wrong.');
+ 'auth/too-many-requests':'Too many tries. Wait a moment and try again.','permission-denied':'Not allowed. Check your Firestore rules and owner email.'}[e.code]||(/initial state|sessionStorage/i.test(e.message||'')?'Google sign-in is blocked in this browser. Use email and password, or open this page in Chrome or Safari.':e.message)||'Something went wrong.');
 
 /* ---- status helpers ---- */
 const vacant=a=>!a.tenantUid;
@@ -525,7 +525,7 @@ const toggleTheme=()=>{const t=document.documentElement.dataset.theme==='dark'?'
 applyTheme(document.documentElement.dataset.theme);
 matchMedia('(prefers-color-scheme:dark)').addEventListener?.('change',e=>{let v=null;try{v=localStorage.getItem('theme')}catch(x){}if(!v){applyTheme(e.matches?'dark':'light');render()}});
 const themeBtn=()=>{const d=document.documentElement.dataset.theme==='dark';return`<button onclick="toggleTheme()" title="${d?'Light':'Dark'} mode" aria-label="Toggle dark mode">${d?IC.sun:IC.moon}</button>`};
-const installBtn=()=>fabHidden()&&!standalone()&&(window.__ip||isIOS)?`<button onclick="showFab()" title="Show install button" aria-label="Show install button">${IC.dl}</button>`:'';
+const installBtn=()=>fabHidden()&&!standalone()&&(window.__ip||isMobile)?`<button onclick="showFab()" title="Show install button" aria-label="Show install button">${IC.dl}</button>`:'';
 const installApp=async()=>{const e=window.__ip;if(!e)return;e.prompt();await e.userChoice.catch(()=>{});window.__ip=null;updateFab()};
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__ip=e;updateFab()});
 addEventListener('appinstalled',()=>{window.__ip=null;toast('App installed');updateFab()});
@@ -535,11 +535,11 @@ addEventListener('online',()=>toast('Back online'));
 /* floating, draggable install button */
 const fab=$('#fab'),isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-let fp={s:'r',y:null};try{fp=JSON.parse(localStorage.getItem('fabPos'))||fp}catch(e){}
+const isMobile=isIOS||/android|mobile/i.test(navigator.userAgent)||matchMedia('(pointer:coarse)').matches;let fp={s:'r',y:null};try{fp=JSON.parse(localStorage.getItem('fabPos'))||fp}catch(e){}
 const fabHidden=()=>{try{return sessionStorage.getItem('fabHide')==='1'}catch(e){return false}};
 function fabPlace(){const r=fab.getBoundingClientRect();let y=fp.y==null?Math.round(innerHeight*.6):fp.y;y=Math.min(Math.max(10,y),innerHeight-r.height-10-(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab'))||0));fab.style.top=y+'px';fab.style.bottom='auto';if(fp.s==='l'){fab.style.left='12px';fab.style.right='auto'}else{fab.style.right='12px';fab.style.left='auto'}}
-function updateFab(){const show=!standalone()&&!fabHidden()&&!!(window.__ip||isIOS);fab.hidden=!show;if(show)fabPlace()}
-const fabClick=()=>{if(window.__ip)installApp();else if(isIOS)ask('Install on iPhone or iPad','1. Open this page in Safari.\n2. Tap the Share button (square with an arrow).\n3. Choose Add to Home Screen, then tap Add.','Got it')};
+function updateFab(){const show=!standalone()&&!fabHidden()&&!!(window.__ip||isMobile);fab.hidden=!show;if(show)fabPlace()}
+const fabClick=()=>{if(window.__ip)installApp();else if(isIOS)ask('Install on iPhone or iPad','1. Open this page in Safari.\n2. Tap the Share button (square with an arrow).\n3. Choose Add to Home Screen, then tap Add.','Got it');else ask('Install on your phone','Chrome: tap the ⋮ menu, then Install app or Add to Home screen.\nSamsung Internet: tap the menu, then Add page to, then Home screen.\nIf you opened this from another app, open it in Chrome first.','Got it')};
 let drag=null;
 fab.addEventListener('pointerdown',e=>{if(e.target.closest('.fx'))return;const r=fab.getBoundingClientRect();drag={dx:e.clientX-r.left,dy:e.clientY-r.top,x0:e.clientX,y0:e.clientY,moved:false};fab.setPointerCapture(e.pointerId)});
 fab.addEventListener('pointermove',e=>{if(!drag)return;if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<6)return;drag.moved=true;fab.classList.add('drag');const r=fab.getBoundingClientRect();
@@ -672,7 +672,7 @@ function render(){
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)render()});
 
 /* ---- auth actions ---- */
-const google=()=>{const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});return signInWithPopup(auth,pr).catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg(fe(e))});}
+const google=()=>{if(/FBAN|FBAV|Instagram|Messenger|Line\/|; wv\)/i.test(navigator.userAgent)){msg('Google sign-in does not work inside this app. Open the page in Chrome or Safari, or use email and password.');return}const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});return signInWithPopup(auth,pr).catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg(fe(e))});}
 async function emailAuth(){
  const em=$('#a_email').value.trim(),pw=$('#a_pw').value;if(!em||!pw)return msg('Enter your email and password.');
  try{if(S.tab==='up'){const nm=$('#a_name').value.trim();if(!nm)return msg('Enter your full name.');
