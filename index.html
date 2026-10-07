@@ -127,7 +127,7 @@ if(configured){
 /* ---- views ---- */
 function hero(t,sub){
  const u=S.user;
- return`<div class="hero"><div class="top"><div></div>${u?`<div class="who">${esc(u.displayName||u.email)} · ${S.owner?'Owner':'Tenant'}<button class="ghost" onclick="logout()">Log out</button></div>`:''}</div><div><h1>${t}</h1><p class="sub">${sub}</p></div></div>`}
+ return`<div class="hero"><div class="top"><div></div>${u?`<div class="who">${esc(u.email||u.displayName)} · ${S.owner?'Owner':'Tenant'}<button class="ghost" onclick="logout()">Log out</button></div>`:''}</div><div><h1>${t}</h1><p class="sub">${sub}</p></div></div>`}
 function render(){
  const app=$('#app');
  if(!configured){app.innerHTML=hero('Apartment Billing','Almost ready')+`<div class="card login"><h2>Add your Firebase config</h2><p>Open this file, find <b>firebaseConfig</b> near the top of the script, and paste your project's web app values. Then set <b>OWNER_EMAILS</b>.</p></div>`;return}
@@ -249,7 +249,7 @@ const nextCycle=id=>run(async()=>{const a=S.units.find(x=>x.id===id),d=new Date(
 const del=id=>run(async()=>{if(confirm('Delete this unit?')){await deleteDoc(doc(db,'units',id));closeM()}});
 
 /* ---- auth actions ---- */
-const google=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg(fe(e))});
+const google=()=>{const pr=new GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});return signInWithPopup(auth,pr).catch(e=>{if(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request')msg(fe(e))});}
 async function emailAuth(){
  const em=$('#a_email').value.trim(),pw=$('#a_pw').value;if(!em||!pw)return msg('Enter your email and password.');
  try{if(S.tab==='up'){const nm=$('#a_name').value.trim();if(!nm)return msg('Enter your full name.');
