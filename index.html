@@ -180,7 +180,7 @@ let auth,db,unsubs=[];
 const t0=performance.now();let ldDone=false;
 const hideLoader=()=>{if(ldDone)return;ldDone=true;setTimeout(()=>{const l=document.getElementById('loader');l&&l.classList.add('off')},Math.max(0,700-(performance.now()-t0)))};
 setTimeout(hideLoader,8000);
-const S={pays:[],q:'',st:'all',month:iso(new Date()).slice(0,7),user:null,owner:false,ready:false,profile:null,unit:null,users:[],units:[],tab:'in',msg:'',idData:'',redo:false};
+const S={reps:[],pays:[],q:'',st:'all',month:iso(new Date()).slice(0,7),user:null,owner:false,ready:false,profile:null,unit:null,users:[],units:[],tab:'in',msg:'',idData:'',redo:false};
 const msg=t=>{S.msg=t;const e=$('#msg');if(e)e.textContent=t};
 const fe=e=>({'auth/invalid-credential':'Wrong email or password.','auth/wrong-password':'Wrong email or password.','auth/user-not-found':'Wrong email or password.',
  'auth/email-already-in-use':'That email already has an account. Log in instead.','auth/weak-password':'Use a password with at least 6 characters.','auth/invalid-email':'Enter a valid email address.',
@@ -198,17 +198,19 @@ const badge=(k)=>`<span class="badge ${k==='approved'?'paid':k==='declined'?'ove
 if(configured){
  auth=getAuth(initializeApp(firebaseConfig));db=getFirestore();
  onAuthStateChanged(auth,u=>{
-  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],pays:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
+  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],pays:[],reps:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
   S.owner=!!u&&u.emailVerified&&OWNER_EMAILS.includes((u.email||'').toLowerCase());
   if(!u||(!S.owner&&OWNER_EMAILS.includes((u.email||'').toLowerCase()))){S.ready=true;return render()}
   const bad=e=>{S.ready=true;S.msg=fe(e);render()};
   if(S.owner){
    unsubs.push(onSnapshot(collection(db,'users'),s=>{S.users=s.docs.map(d=>({id:d.id,...d.data()}));render()},bad));
+   unsubs.push(onSnapshot(collection(db,'paymentReports'),s=>{S.reps=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'payments'),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'units'),s=>{S.units=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.unit.localeCompare(b.unit,undefined,{numeric:true}));S.ready=true;render()},bad));
    ensureChat();
   }else{
    unsubs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.profile=s.exists()?s.data():null;S.ready=true;if(S.profile?.status==='approved')ensureChat();render()},bad));
+   unsubs.push(onSnapshot(query(collection(db,'paymentReports'),where('tenantUid','==',u.uid)),s=>{S.reps=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'payments'),where('tenantUid','==',u.uid)),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'units'),where('tenantUid','==',u.uid)),s=>{S.unit=s.docs[0]?{id:s.docs[0].id,...s.docs[0].data()}:null;render()},bad));
   }
@@ -296,7 +298,12 @@ function tenantView(a){
  const n={overdue:`Overdue by ${-d} day(s): ${money(a.rent)}`,due:`Payment due ${d===0?'today':'in '+d+' day(s)'}: ${money(a.rent)}`,unpaid:`Upcoming payment on ${fmt(a.due)}`,paid:'Payment received. Nothing to do.'}[s];
  return`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
  <div class="card"><h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
- <div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div><p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>${payHistory(a,s)}`}
+ <div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div><p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>${reportCard(a,s)}${payHistory(a,s)}`}
+function reportCard(a,s){
+ if(s==='paid'||vacant(a))return'';
+ const r=S.reps.find(x=>x.id===payId(a.id,a.due.slice(0,7)));
+ if(r&&r.status==='pending')return`<div class="card"><h2>Payment report</h2><div class="note">${badge('pending')} You reported ${money(r.amount)} paid on ${fmt(r.paidDate)}${r.ref?' · Ref '+esc(r.ref):''}. Waiting for the owner to confirm.</div></div>`;
+ return`<div class="card"><div class="head"><h2 style="margin:0">Already paid?</h2><button class="p s" onclick="reportPay()">Report payment</button></div>${r&&r.status==='declined'?`<div class="note">${badge('declined')} Declined: ${esc(r.reason||'No reason given.')}</div>`:''}<p class="mut" style="margin:0">Send your payment details to the owner. Your rent shows as paid once they confirm.</p></div>`}
 function payHistory(a,s){
  const H={};
  Object.entries(a.payments||{}).forEach(([k,v])=>{const ym=k.slice(1,5)+'-'+k.slice(5);H[ym]={s:'paid',amt:Number(v)}});
@@ -312,7 +319,7 @@ function payHistory(a,s){
 /* owner */
 function ownerView(){
  const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat'].includes(S.page)?S.page:'units';
- const nav=`<nav class="nav">${navBtn(pg,'units','Units')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`;
+ const nav=`<nav class="nav">${navBtn(pg,'units','Units',pendRep().length?`<span class="dot">${pendRep().length}</span>`:'')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`;
  return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():unitsView());
 }
 const page=p=>{S.page=p;render()},filt=k=>{S.filter=k;render()};
@@ -338,6 +345,7 @@ const setMonth=v=>{if(!v)return;S.month=v;paintUnits()};
 const setQ=v=>{S.q=v;paintUnits()};
 const setSt=k=>{S.st=k;paintUnits();document.querySelectorAll('#u_chips button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))};
 function paintUnits(){
+ const rp=$('#u_reps');if(rp){const L=pendRep();rp.innerHTML=L.length?`<div class="card"><h2>Payment reports <span class="dot" style="position:static">${L.length}</span></h2>${L.map(r=>`<div class="reg"><div><b>Unit ${esc(r.unit)} · ${esc(r.tenantName)}</b><br><span class="mut">${money(r.amount)} for ${monthLabel(r.month)} · paid ${fmt(r.paidDate)}${r.ref?' · Ref '+esc(r.ref):''}</span></div><div class="regr"><button class="s p" onclick="approveRep('${r.id}')">Approve</button><button class="s" onclick="declineRep('${r.id}')">Decline</button></div></div>`).join('')}</div>`:''}
  const ss=$('#u_stats'),ll=$('#u_list');if(!ss||!ll)return;
  const A=S.units,ym=S.month,pend=S.users.filter(u=>u.status==='pending').length;
  const M=A.map(a=>({a,...mstat(a,ym)}));
@@ -359,7 +367,7 @@ function paintUnits(){
  <div class="dact">${(s==='unpaid'||s==='due'||s==='overdue')?`<button class="s p" onclick="markPaid('${a.id}')">Mark paid</button>`:''}<button class="s" onclick="edit('${a.id}')">Edit</button></div></div>`}).join(''):`<div class="empty">${A.length?'No units match your filter.':'Add your first unit to start billing.'}</div>`}
 function unitsView(){
  const chip=(k,l)=>`<button data-k="${k}" class="${S.st===k?'on':''}" onclick="setSt('${k}')">${l}</button>`;
- return`<div class="stats" id="u_stats"></div>
+ return`<div id="u_reps"></div><div class="stats" id="u_stats"></div>
  <div class="card"><div class="head"><h2 style="margin:0">Units</h2><button class="p s" onclick="edit()">Add unit</button></div>
  <div class="tools">
   <div class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="u_q" type="search" placeholder="Filter by unit, tenant or status…" autocomplete="off" value="${esc(S.q)}" oninput="setQ(this.value)" aria-label="Filter units"></div>
@@ -374,6 +382,29 @@ const markPaid=id=>run(async()=>{const a=S.units.find(x=>x.id===id),ym=(a.due||'
  const b=writeBatch(db);b.update(doc(db,'units',id),{paid:true});
  if(!hasPay(id,ym))b.set(doc(db,'payments',payId(id,ym)),payDoc(a,ym));
  await b.commit()});
+const pendRep=()=>S.reps.filter(r=>r.status==='pending');
+function reportPay(){const a=S.unit;if(!a)return;
+ openM(`<h2>Report payment</h2><p class="mut" style="margin-top:0">${esc(a.unit)} · ${monthLabel(a.due.slice(0,7))}</p>
+ <label for="r_amt">Amount paid</label><input id="r_amt" type="number" min="1" value="${a.rent}">
+ <label for="r_date">Date paid</label><input id="r_date" type="date" value="${iso(new Date())}" max="${iso(new Date())}">
+ <label for="r_ref">Reference no. (optional)</label><input id="r_ref" maxlength="60" autocomplete="off">
+ <div class="row"><button onclick="closeM()">Cancel</button><button class="p" onclick="submitReport()">Send to owner</button></div>`)}
+const submitReport=()=>run(async()=>{const a=S.unit,ym=a.due.slice(0,7),id=payId(a.id,ym),amt=+$('#r_amt').value,dt=$('#r_date').value;
+ if(!(amt>0)||!dt){alert('Enter the amount and the date you paid.');return}
+ const f={amount:amt,paidDate:dt,ref:$('#r_ref').value.trim(),status:'pending',createdAt:serverTimestamp()};
+ if(S.reps.some(x=>x.id===id))await updateDoc(doc(db,'paymentReports',id),{...f,reason:deleteField(),reviewedAt:deleteField()});
+ else await setDoc(doc(db,'paymentReports',id),{unitId:a.id,unit:a.unit,tenantUid:S.user.uid,tenantName:a.tenantName,month:ym,...f});
+ closeM()});
+const approveRep=id=>run(async()=>{const r=S.reps.find(x=>x.id===id),a=S.units.find(x=>x.id===r.unitId);
+ if(!a){alert('This unit no longer exists.');return}
+ if(!confirm('Approve '+money(r.amount)+' from '+r.tenantName+' for '+monthLabel(r.month)+'?\nThis creates a permanent payment record.'))return;
+ const b=writeBatch(db);
+ b.update(doc(db,'paymentReports',id),{status:'approved',reviewedAt:serverTimestamp()});
+ if(!hasPay(a.id,r.month))b.set(doc(db,'payments',payId(a.id,r.month)),payDoc({...a,rent:r.amount},r.month));
+ if((a.due||'').slice(0,7)===r.month)b.update(doc(db,'units',a.id),{paid:true});
+ await b.commit()});
+const declineRep=id=>run(async()=>{const reason=prompt('Reason for declining (the tenant will see this):');if(reason===null)return;
+ await updateDoc(doc(db,'paymentReports',id),{status:'declined',reason:reason.trim().slice(0,200),reviewedAt:serverTimestamp()})});
 const closeM=()=>$('#modal').classList.remove('on');
 const openM=h=>{$('#mbody').innerHTML=h;$('#modal').classList.add('on')};
 async function review(uid){
@@ -471,7 +502,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
