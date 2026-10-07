@@ -315,6 +315,13 @@ img,svg,video{max-width:100%}
 :root .nav button:not([onclick^="page("]) svg{width:20px;height:20px}
 @media(pointer:coarse){:root .nav button:not([onclick^="page("]){min-height:40px}}
 @media(max-width:360px){:root .nav button:not([onclick^="page("]){flex-basis:36px;width:36px;height:36px;margin-left:2px}}
+
+/* top bar sits above the page title */
+.wrap{display:flex;flex-direction:column;padding-top:0}
+.wrap>*{min-width:0}
+.wrap>.login{width:100%}
+:root .nav{order:-1;margin-bottom:0}
+.hero{padding-top:18px}
 </style>
 </head>
 <body>
