@@ -613,12 +613,13 @@ function redo(){S.redo=true;S.idData='';S.msg='';render()}
 function verifyView(p){
  return`<div class="card login" style="max-width:460px"><h2>Verify your identity</h2><p class="mut" style="margin-top:0">Register your name and upload a photo of a government ID. Only you and the owner can see it.</p>
  <label for="v_name">Full name (as shown on your ID)</label><input id="v_name" value="${esc(p?.name||S.user.displayName||'')}">
+ <label for="v_phone">Mobile number (for rent reminders by text)</label><input id="v_phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="0917 123 4567" value="${esc(fmtPh(p?.phone||''))}">
  <label for="v_type">ID type</label><select id="v_type">${['National ID','Driver\'s license','Passport','Other government ID'].map(t=>`<option ${p?.idType===t?'selected':''}>${t}</option>`).join('')}</select>
  <label for="v_file">ID photo (JPG or PNG)</label><input id="v_file" type="file" accept="image/*" onchange="pickFile(this)">
  <div id="prev" class="prev">${S.idData?`<img src="${S.idData}" alt="ID preview">`:''}</div>
  <label for="v_selfie">Live selfie (face the camera, good light)</label><input id="v_selfie" type="file" accept="image/*" capture="user" onchange="pickSelfie(this)">
  <div id="sprev" class="prev">${S.selfie?`<img src="${S.selfie}" alt="Selfie preview">`:''}</div>
- <label class="chk"><input type="checkbox" id="v_ok"><span>I agree that my name, ID photo and a selfie are collected so the owner can compare them and verify my tenancy. The selfie is deleted after the owner decides. <a href="#" onclick="showPrivacy();return false">Read the privacy notice</a></span></label>
+ <label class="chk"><input type="checkbox" id="v_ok"><span>I agree that my name, mobile number, ID photo and a selfie are collected so the owner can verify my tenancy, and that rent reminders may be texted to my number. The selfie is deleted after the owner decides. <a href="#" onclick="showPrivacy();return false">Read the privacy notice</a></span></label>
  <div class="err" id="msg">${esc(S.msg)}</div>
  <div class="row">${S.redo?'<button onclick="S.redo=false;render()">Cancel</button>':''}<button class="p" id="v_btn" onclick="submitVerify()">Submit for review</button></div></div>`}
 function compress(file,max=1000,lim=900000){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error('Could not read the file.'));
@@ -632,15 +633,19 @@ async function pickSelfie(el){const f=el.files[0];if(!f)return;if(!f.type.starts
 async function submitVerify(){
  const name=$('#v_name').value.trim();
  if(!name)return msg('Enter your full name as shown on your ID.');
+ const ph=normPh($('#v_phone').value);if(!ph)return msg('Enter a valid Philippine mobile number, e.g. 0917 123 4567.');
  if(!S.idData)return msg('Upload a clear photo of your ID.');
  if(!S.selfie)return msg('Take a selfie so the owner can compare it with your ID.');
  if(!$('#v_ok').checked)return msg('Please agree to the privacy notice to continue.');
  const btn=$('#v_btn');btn.disabled=true;btn.textContent='Submitting…';
- try{const b=writeBatch(db),uid=S.user.uid;
+ try{const uid=S.user.uid,mk=withPh=>{const b=writeBatch(db);
   b.set(doc(db,'ids',uid),{image:S.idData,consentAt:serverTimestamp(),updatedAt:serverTimestamp()});
   b.set(doc(db,'selfies',uid),{image:S.selfie,createdAt:serverTimestamp()});
-  b.set(doc(db,'users',uid),{name,email:S.user.email||'',idType:$('#v_type').value,status:'pending',reason:'',submittedAt:serverTimestamp()});
-  await b.commit();S.idData='';S.selfie='';S.redo=false;S.msg=''}catch(e){btn.disabled=false;btn.textContent='Submit for review';msg(fe(e))}}
+  b.set(doc(db,'users',uid),{name,email:S.user.email||'',idType:$('#v_type').value,status:'pending',reason:'',submittedAt:serverTimestamp(),...(withPh?{phone:ph}:{})});
+  return b};
+  // if your Firestore rules do not allow the phone field yet, register without it (owner can add the number)
+  try{await mk(true).commit()}catch(e){if(e.code!=='permission-denied')throw e;await mk(false).commit()}
+  S.idData='';S.selfie='';S.redo=false;S.msg=''}catch(e){btn.disabled=false;btn.textContent='Submit for review';msg(fe(e))}}
 function tenantView(a){
  const s=status(a),d=days(a);
  const m={paid:['Your rent is paid','Thank you. Next due date: '+fmt(a.due)],
@@ -682,7 +687,7 @@ function regsView(){
  const list=S.users.filter(u=>f==='all'||u.status===f).sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0));
  const chip=(k,l,n)=>`<button class="${f===k?'on':''}" onclick="filt('${k}')">${l} (${n})</button>`;
  return`<div class="card"><h2>Tenant registrations</h2><div class="chips">${chip('pending','Pending',cnt('pending'))}${chip('approved','Approved',cnt('approved'))}${chip('declined','Declined',cnt('declined'))}${chip('all','All',S.users.length)}</div>
- ${list.length?list.map(u=>`<div class="reg"><div><b>${esc(u.name)}</b><div class="mut">${esc(u.email)} · ${esc(u.idType)} · ${when(u.submittedAt)}</div>${u.status==='declined'&&u.reason?`<div class="mut">Reason: ${esc(u.reason)}</div>`:''}</div><div class="regr">${badge(u.status)}<button class="s ${u.status==='pending'?'p':''}" onclick="review('${u.id}')">${u.status==='pending'?'Review ID':'View'}</button></div></div>`).join(''):'<p class="mut" style="margin:0">Nothing here yet.</p>'}</div>`}
+ ${list.length?list.map(u=>`<div class="reg"><div><b>${esc(u.name)}</b><div class="mut">${esc(u.email)}${u.phone?' · '+esc(fmtPh(u.phone)):''} · ${esc(u.idType)} · ${when(u.submittedAt)}</div>${u.status==='declined'&&u.reason?`<div class="mut">Reason: ${esc(u.reason)}</div>`:''}</div><div class="regr">${badge(u.status)}<button class="s ${u.status==='pending'?'p':''}" onclick="review('${u.id}')">${u.status==='pending'?'Review ID':'View'}</button></div></div>`).join(''):'<p class="mut" style="margin:0">Nothing here yet.</p>'}</div>`}
 const mkey=ym=>'m'+ym.replace('-','');
 // status of a unit for a chosen month: uses recorded payments, else the unit's current billing cycle
 const payId=(uid,ym)=>uid+'_'+ym;
@@ -835,6 +840,7 @@ function edit(id){
  <label for="f_unit">Unit name</label><input id="f_unit" value="${esc(a.unit)}" oninput="checkDup('${id||''}',this.value)" autocomplete="off"><div class="err" id="f_dup" style="margin:6px 0 0"></div>
  <label for="f_photo">Unit photo (optional)</label><input id="f_photo" type="file" accept="image/*" onchange="pickUnitPhoto(this)"><div id="f_pprev" class="prev">${unitPrev()}</div><div class="err" id="f_perr" style="margin:6px 0 0"></div>
  <label for="f_ten">Tenant</label><select id="f_ten"><option value="">Empty / vacant</option>${ppl.map(u=>`<option value="${u.id}" ${u.id===a.tenantUid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>
+ <label for="f_phone">Tenant mobile number (for SMS reminders)</label><input id="f_phone" type="tel" inputmode="tel" placeholder="0917 123 4567" value="${esc(fmtPh(a.phone||S.users.find(x=>x.id===a.tenantUid)?.phone||''))}"><label class="chk"><input type="checkbox" id="f_sms" ${a.sms===false?'':'checked'}><span>Send automatic SMS reminders to this number</span></label>
  <label for="f_rent">Monthly rent</label><input id="f_rent" type="number" min="0" value="${a.rent}"><label for="f_late">Late fee (optional)</label><input id="f_late" type="number" min="0" value="${a.lateFee||0}"><label for="f_grace">Charge late fee after (days overdue)</label><input id="f_grace" type="number" min="0" value="${a.grace??3}">
  <label for="f_due">Due date</label><input id="f_due" type="date" value="${a.due}" ${a.paid&&a.tenantUid?'disabled':''}>
  <label for="f_paid">Payment</label><select id="f_paid" ${a.paid&&a.tenantUid?'disabled':''}><option value="0" ${!a.paid?'selected':''}>Not paid</option><option value="1" ${a.paid?'selected':''}>Paid</option></select>${a.paid&&a.tenantUid?'<p class="mut" style="margin:6px 0 0">This payment is recorded and locked. Use Next month for the next bill.</p>':''}
@@ -857,8 +863,9 @@ const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim().replace(/\
  if(dupUnit(id,unit)){formErr('f_dup','A unit with this name already exists.','f_unit');return}
  const old=id?S.units.find(x=>x.id===id):null,locked=!!(old&&old.paid&&old.tenantUid);
  const t=$('#f_ten').value,u=S.users.find(x=>x.id===t);
+ const phRaw=$('#f_phone').value.trim(),phone=normPh(phRaw);if(phRaw&&!phone){formErr('f_dup','Enter a valid Philippine mobile number, e.g. 0917 123 4567.','f_phone');return}
  const due=locked?old.due:($('#f_due').value||off(30)),wantPaid=locked||$('#f_paid').value==='1';
- const d={unit,tenantUid:t,tenantName:u?u.name:'',rent:+$('#f_rent').value||0,lateFee:+$('#f_late').value||0,grace:+$('#f_grace').value||0,due,paid:t?wantPaid:false};
+ const d={unit,tenantUid:t,tenantName:u?u.name:'',rent:+$('#f_rent').value||0,lateFee:+$('#f_late').value||0,grace:+$('#f_grace').value||0,due,paid:t?wantPaid:false,phone:t?phone:'',sms:$('#f_sms').checked};
  const ref=id?doc(db,'units',id):doc(collection(db,'units')),ym=due.slice(0,7),b=writeBatch(db);
  if(d.paid&&!hasPay(ref.id,ym)){if(!await ask('Save as paid?','This creates a permanent payment record for '+monthLabel(ym)+' that cannot be edited or deleted.','Save as paid'))return;
   b.set(doc(db,'payments',payId(ref.id,ym)),payDoc({...d,id:ref.id},ym))}
@@ -914,6 +921,10 @@ function remFeed(a){
  [[0,`Your rent of ${rent} is due today.`,'due'],[1,`Your rent of ${rent} is due tomorrow.`,'due'],[3,`Reminder: your rent of ${rent} is due in 3 days.`,'due'],[7,`Heads up: your rent of ${rent} is due in 7 days (${fmt(a.due)}).`,'unpaid']].forEach(([n,t,k])=>{if(d<=n)L.push([k,shiftDay(a.due,-n),t])});
  return`<h3 class="rh">Automatic reminders</h3>`+L.map(([k,dt,t])=>`<div class="note">${badge(k)} <span class="mut">${fmt(dt)}</span><br>${esc(t)}</div>`).join('')}
 /* owner: reminder list, email/copy a message, optional automatic group-chat post */
+const normPh=v=>{let d=String(v||'').replace(/[^\d+]/g,'');if(d.startsWith('+'))d=d.slice(1);if(/^09\d{9}$/.test(d))d='63'+d.slice(1);else if(/^9\d{9}$/.test(d))d='63'+d;return /^639\d{9}$/.test(d)?'+'+d:''};
+const fmtPh=v=>v?String(v).replace(/^\+63(\d{3})(\d{3})(\d{4})$/,'0$1 $2 $3'):'';
+const phoneOf=a=>a.phone||S.users.find(x=>x.id===a.tenantUid)?.phone||'';
+const smsRem=id=>{const a=S.units.find(x=>x.id===id),n=a&&phoneOf(a);if(!n){toast('No mobile number for this tenant. Add it in Edit.','warn');return}location.href='sms:'+n+'?&body='+encodeURIComponent(remText(a))};
 const remText=a=>{const d=days(a);return`Hello ${a.tenantName||'tenant'}, this is a friendly reminder that rent for unit ${a.unit} (${money(owed(a))}) ${d<0?'was due on '+fmt(a.due)+' and is now '+(-d)+' day'+(-d>1?'s':'')+' overdue':d===0?'is due today':'is due on '+fmt(a.due)+' (in '+d+' day'+(d>1?'s':'')+')'}. Please pay or report your payment in the Apartment Billing app. Thank you!`};
 const mailRem=id=>{const a=S.units.find(x=>x.id===id),u=a&&S.users.find(x=>x.id===a.tenantUid);if(!a)return;if(!u?.email){toast('No email on file for this tenant.','warn');return}
  location.href='mailto:'+encodeURIComponent(u.email)+'?subject='+encodeURIComponent('Rent reminder · Unit '+a.unit)+'&body='+encodeURIComponent(remText(a))};
@@ -923,7 +934,7 @@ const setAutoChat=on=>{try{localStorage.setItem('autoChat_'+S.user.uid,on?'1':'0
 function ownerRemCard(){
  const L=S.units.filter(a=>!vacant(a)&&!a.paid&&days(a)<=7).sort((x,y)=>days(x)-days(y));
  return reminderCard()+`<div class="card"><h2>Rent reminders ${L.length?`<span class="badge due">${L.length}</span>`:''}</h2>`+
- (L.length?L.map(a=>{const d=days(a);return`<div class="reg"><div><b>Unit ${esc(a.unit)} · ${esc(a.tenantName)}</b><br><span class="mut">${d<0?'Overdue by '+(-d)+' day'+(-d>1?'s':''):d===0?'Due today':'Due in '+d+' day'+(d>1?'s':'')} · ${money(owed(a))}</span></div><div class="regr"><button class="s p" onclick="mailRem('${a.id}')">Email</button><button class="s" onclick="copyRem('${a.id}')">Copy</button></div></div>`}).join(''):'<p class="mut" style="margin:0">No rent due in the next 7 days and nothing overdue.</p>')+
+ (L.length?L.map(a=>{const d=days(a);return`<div class="reg"><div><b>Unit ${esc(a.unit)} · ${esc(a.tenantName)}</b><br><span class="mut">${d<0?'Overdue by '+(-d)+' day'+(-d>1?'s':''):d===0?'Due today':'Due in '+d+' day'+(d>1?'s':'')} · ${money(owed(a))}${phoneOf(a)?' · '+esc(fmtPh(phoneOf(a))):' · no number'}</span></div><div class="regr">${phoneOf(a)?`<button class="s p" onclick="smsRem('${a.id}')">SMS</button>`:''}<button class="s${phoneOf(a)?'':' p'}" onclick="mailRem('${a.id}')">Email</button><button class="s" onclick="copyRem('${a.id}')">Copy</button></div></div>`}).join(''):'<p class="mut" style="margin:0">No rent due in the next 7 days and nothing overdue.</p>')+
  `<label class="chk"><input type="checkbox" ${autoChatOn()?'checked':''} onchange="setAutoChat(this.checked)"><span>Automatically post a rent reminder in the group chat (3 days before, on the due date, and when overdue). It is sent when you open this app and never shows names or amounts.</span></label></div>`}
 // owner: posts one generic reminder per day to the group chat (fixed message id, so it never duplicates)
 function autoChatPost(){
@@ -1028,10 +1039,10 @@ const submitMaint=()=>run(async()=>{const t=$('#m_t').value.trim();if(!t||!S.uni
 const mtNext=id=>run(async()=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!MT_NEXT[r.status])return;await updateDoc(doc(db,'maintenance',id),{status:MT_NEXT[r.status],updatedAt:serverTimestamp()})});
 const viewMaint=id=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!okImg(r.photo))return;openM(`<h2>${esc(r.title)}</h2><img class="idimg" src="${r.photo}" alt="Problem photo"><div class="row"><button onclick="closeM()">Close</button></div>`)};
 /* ---- privacy notice + offline banner ---- */
-const showPrivacy=()=>openM(`<h2>Privacy notice</h2><p class="mut" style="margin-top:0">Under the Philippine Data Privacy Act (RA 10173):</p><p><b>What we collect:</b> your name, email, ID type and a photo of your government ID, a live selfie that the owner compares with your ID (it is deleted once the owner decides), plus rent and payment records, receipts you upload and chat messages.</p><p><b>Why:</b> to verify who you are, link you to your unit, and record rent payments.</p><p><b>Who can see it:</b> only you and the property owner. Your ID photo is not shown to other tenants.</p><p><b>How long:</b> the owner keeps it while you are a tenant and deletes your ID photo after your tenancy ends, unless the law requires otherwise. Payment records are kept as permanent receipts.</p><p><b>Your rights:</b> you may ask the owner to see, correct or delete your data.</p><div class="row"><button class="p" onclick="closeM()">Close</button></div>`);
+const showPrivacy=()=>openM(`<h2>Privacy notice</h2><p class="mut" style="margin-top:0">Under the Philippine Data Privacy Act (RA 10173):</p><p><b>What we collect:</b> your name, email, mobile number, ID type and a photo of your government ID, a live selfie that the owner compares with your ID (it is deleted once the owner decides), plus rent and payment records, receipts you upload and chat messages.</p><p><b>Why:</b> to verify who you are, link you to your unit, record rent payments, and text you rent reminders.</p><p><b>Who can see it:</b> only you and the property owner. Your ID photo is not shown to other tenants.</p><p><b>How long:</b> the owner keeps it while you are a tenant and deletes your ID photo after your tenancy ends, unless the law requires otherwise. Payment records are kept as permanent receipts.</p><p><b>Your rights:</b> you may ask the owner to see, correct or delete your data.</p><div class="row"><button class="p" onclick="closeM()">Close</button></div>`);
 const net=()=>{let b=$('#offl');if(!b){b=document.createElement('div');b.id='offl';b.setAttribute('role','status');b.textContent='You are offline. Changes will sync when you reconnect.';document.body.appendChild(b)}b.classList.toggle('on',!navigator.onLine)};
 addEventListener('online',net);addEventListener('offline',net);net();
-Object.assign(window,{mailRem,copyRem,setAutoChat,pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{smsRem,mailRem,copyRem,setAutoChat,pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
