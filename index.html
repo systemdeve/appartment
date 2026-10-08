@@ -705,7 +705,7 @@ const setQ=v=>{S.q=v;paintUnits()};
 const setSt=k=>{S.st=k;paintUnits();document.querySelectorAll('#u_chips button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))};
 function paintUnits(){
  const rp=$('#u_reps');if(rp){const L=pendRep();rp.innerHTML=L.length?`<div class="card"><h2>Payment reports <span class="dot" style="position:static">${L.length}</span></h2>${L.map(r=>`<div class="reg"><div><b>Unit ${esc(r.unit)} · ${esc(r.tenantName)}</b><br><span class="mut">${money(r.amount)} for ${monthLabel(r.month)} · paid ${fmt(r.paidDate)}${r.ref?' · Ref '+esc(r.ref):''}</span></div><div class="regr">${r.proof?`<button class="s" onclick="viewProof('${r.id}')">View proof</button>`:''}<button class="s p" onclick="approveRep('${r.id}')">Approve</button><button class="s" onclick="declineRep('${r.id}')">Decline</button></div></div>`).join('')}</div>`:''}
- const rm=$('#u_rem');if(rm)rm.innerHTML=ownerRemCard();
+ const rm=$('#u_rem');if(rm)rm.innerHTML=ownerRemCard()+bkCard();
  const ss=$('#u_stats'),ll=$('#u_list');if(!ss||!ll)return;
  const A=S.units,ym=S.month,pend=S.users.filter(u=>u.status==='pending').length;
  const M=A.map(a=>({a,...mstat(a,ym)}));
@@ -973,6 +973,79 @@ function remind(){try{
  const d=days(a);if(d>7||S.reps.some(r=>r.status==='pending'&&r.id===payId(a.id,a.due.slice(0,7))))return;
  if(once('rem_'+a.id+'_'+a.due+'_'+day))alertUser(d<0?'Rent overdue by '+(-d)+' day'+(-d>1?'s':''):d===0?'Rent due today':d===1?'Rent due tomorrow':'Rent due in '+d+' days',money(owed(a))+' for unit '+a.unit+' · due '+fmt(a.due),'rent')
 }catch(e){}}
+const crcT=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=u=>{let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+// minimal ZIP writer (no compression: JPEG/PNG are already compressed)
+function makeZip(files){
+ const enc=new TextEncoder(),parts=[],cd=[],d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+ let off=0,cdSize=0;
+ for(const f of files){
+  const nm=enc.encode(f.name),crc=crc32(f.data),sz=f.data.length;
+  const lh=new DataView(new ArrayBuffer(30));lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(10,tm,true);lh.setUint16(12,dt,true);lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nm.length,true);
+  parts.push(lh.buffer,nm,f.data);
+  const ch=new DataView(new ArrayBuffer(46));ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(12,tm,true);ch.setUint16(14,dt,true);ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,off,true);
+  cd.push(ch.buffer,nm);cdSize+=46+nm.length;off+=30+nm.length+sz}
+ const end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,cdSize,true);end.setUint32(16,off,true);
+ return new Blob([...parts,...cd,end.buffer],{type:'application/zip'})}
+const dataBytes=u=>{if(typeof u!=='string'||u.slice(0,5)!=='data:')return null;const i=u.indexOf(',');if(i<0)return null;const h=u.slice(5,i);if(!/;base64$/.test(h))return null;
+ const b=atob(u.slice(i+1)),a=new Uint8Array(b.length);for(let k=0;k<b.length;k++)a[k]=b.charCodeAt(k);
+ return{ext:({'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'})[h.split(';')[0]]||'img',bytes:a}};
+const safeName=s=>String(s||'').replace(/[\\\/:*?"<>|\u0000-\u001f]+/g,'_').replace(/\s+/g,' ').trim().slice(0,40)||'x';
+const saveBlob=(name,blob)=>{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)};
+/* ---- photo backup: download as ZIP, then delete to free storage ---- */
+S.bk={o:{proofs:1,maint:1,units:0,ids:0},months:0,busy:false,msg:'',done:null};
+const bkCut=()=>S.bk.months?Date.now()-S.bk.months*30*864e5:Infinity;
+const bkIdUser=u=>u.status!=='pending'&&!S.units.some(x=>x.tenantUid===u.id);
+const bkStats=()=>{const cut=bkCut();return{
+ P:S.reps.filter(r=>okImg(r.proof)&&r.status!=='pending'&&(ms(r.createdAt)||0)<cut),
+ M:(S.mt||[]).filter(r=>okImg(r.photo)&&r.status==='fixed'&&(ms(r.createdAt)||0)<cut),
+ U:S.units.filter(a=>okImg(a.photo)),I:S.users.filter(bkIdUser)}};
+const mbOf=(L,f)=>{const n=L.reduce((t,x)=>t+Math.round(String(x[f]).length*.75),0);return(n/1048576).toFixed(1)+' MB'};
+const bkMsg=()=>{const e=$('#bk_st');if(e)e.textContent=S.bk.msg};
+const bkOpt=(k,v)=>{S.bk.o[k]=v?1:0;S.bk.done=null;S.bk.msg='';render()};
+const bkMonths=v=>{S.bk.months=+v||0;S.bk.done=null;S.bk.msg='';render()};
+function bkCard(){
+ const o=S.bk.o,{P,M,U,I}=bkStats(),b=S.bk.busy,chk=(k,t)=>`<label class="chk"><input type="checkbox" ${o[k]?'checked':''} ${b?'disabled':''} onchange="bkOpt('${k}',this.checked)"><span>${t}</span></label>`;
+ return`<div class="card"><h2>Photo backup</h2><p class="mut" style="margin-top:0">Download your uploaded photos as a ZIP file, then delete them from the app to free storage. Do this once a month. Photos for pending payment reports and open maintenance requests are never included.</p>
+ ${chk('proofs',`Payment proofs: ${P.length} photo${P.length===1?'':'s'} · ${mbOf(P,'proof')}`)}
+ ${chk('maint',`Maintenance photos (fixed requests): ${M.length} · ${mbOf(M,'photo')}`)}
+ ${chk('units',`Unit photos: ${U.length} · ${mbOf(U,'photo')} (the unit card will show no picture until you upload a new one)`)}
+ ${chk('ids',`ID photos of declined registrations and people without a unit: ${I.length}`)}
+ <label for="bk_m">Only photos older than</label><select id="bk_m" ${b?'disabled':''} onchange="bkMonths(this.value)">${[[0,'All (any age)'],[1,'1 month'],[3,'3 months'],[6,'6 months']].map(([v,t])=>`<option value="${v}" ${S.bk.months===v?'selected':''}>${t}</option>`).join('')}</select>
+ <div class="row" style="justify-content:flex-start"><button class="p" onclick="bkDownload()" ${b?'disabled':''}>1. Download ZIP</button><button onclick="bkDelete()" ${S.bk.done&&!b?'':'disabled'}>2. Delete ${S.bk.done?S.bk.done.n+' ':''}photos</button></div>
+ <p class="mut" id="bk_st" style="margin:10px 0 0" role="status">${esc(S.bk.msg)}</p></div>`}
+async function bkDownload(){
+ if(S.bk.busy)return;const o=S.bk.o;
+ if(!o.proofs&&!o.maint&&!o.units&&!o.ids){toast('Tick at least one kind of photo.','warn');return}
+ S.bk.busy=true;S.bk.done=null;S.bk.msg='Collecting photos…';render();
+ try{
+  const st=bkStats(),files=[],refs=[],rows=[['File','Type','Unit','Tenant','Date']],day=r=>ms(r.createdAt)?iso(new Date(ms(r.createdAt))):'undated';
+  const add=(path,url,kind,ref,unit,who,date)=>{const q=dataBytes(url);if(!q)return;const name=path+'.'+q.ext;files.push({name,data:q.bytes});refs.push(ref);rows.push([name,kind,unit,who,date])};
+  if(o.proofs)st.P.forEach(r=>add(`payment-proofs/${r.month||'undated'}_${safeName(r.unit)}_${safeName(r.tenantName)}_${r.id.slice(-6)}`,r.proof,'Payment proof',{c:'paymentReports',id:r.id,f:'proof'},r.unit,r.tenantName,day(r)));
+  if(o.maint)st.M.forEach(r=>add(`maintenance/${day(r)}_${safeName(r.unit)}_${safeName(r.title)}_${r.id.slice(-6)}`,r.photo,'Maintenance',{c:'maintenance',id:r.id,f:'photo'},r.unit,r.tenantName,day(r)));
+  if(o.units)st.U.forEach(a=>add(`units/${safeName(a.unit)}_${a.id.slice(-6)}`,a.photo,'Unit photo',{c:'units',id:a.id,f:'photo'},a.unit,'',''));
+  let skipped=0;
+  if(o.ids){let i=0;for(const u of st.I){S.bk.msg=`Reading ID photos ${++i} of ${st.I.length}…`;bkMsg();
+   try{const d=await getDoc(doc(db,'ids',u.id));if(d.exists()&&d.data().image)add(`id-photos/${safeName(u.name)}_${u.id.slice(0,6)}`,d.data().image,'ID photo',{c:'ids',id:u.id,f:null},'',u.name,'');}catch(e){skipped++}}}
+  if(!files.length){S.bk.msg='No photos match your choices.'+(skipped?` ${skipped} ID photo(s) could not be read.`:'');toast('No photos to back up.','warn');return}
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  files.push({name:'index.csv',data:new TextEncoder().encode('\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n'))});
+  const bytes=files.reduce((t,f)=>t+f.data.length,0),n=refs.length,name='photos-backup-'+iso(new Date())+'.zip';
+  saveBlob(name,makeZip(files));
+  S.bk.done={refs,n};
+  S.bk.msg=`Downloaded ${name}: ${n} photo${n===1?'':'s'}, ${(bytes/1048576).toFixed(1)} MB.${skipped?` ${skipped} ID photo(s) could not be read and are not included.`:''} Check that the file is saved and opens, then tap Delete.`;
+ }catch(e){S.bk.msg='Backup failed: '+(e.message||e)}
+ finally{S.bk.busy=false;render()}}
+const bkDelete=()=>run(async()=>{
+ const d=S.bk.done;if(!d||S.bk.busy)return;
+ if(!await ask('Delete '+d.n+' photo'+(d.n===1?'':'s')+'?','Only continue if the ZIP file is saved and opens on your device. These photos will be removed from the app and cannot be restored.','Delete photos'))return;
+ S.bk.busy=true;S.bk.msg='Deleting…';render();let n=0;
+ try{for(let i=0;i<d.refs.length;i+=100){const b=writeBatch(db);
+   d.refs.slice(i,i+100).forEach(r=>r.f?b.update(doc(db,r.c,r.id),{[r.f]:deleteField()}):b.delete(doc(db,r.c,r.id)));
+   await b.commit();n=Math.min(i+100,d.refs.length);S.bk.msg=`Deleted ${n} of ${d.n}…`;bkMsg()}
+  S.bk.msg=`Deleted ${n} photo${n===1?'':'s'}. The usage numbers in the Firebase console can take a while to update.`;toast('Photos deleted');S.bk.done=null}
+ catch(e){S.bk.msg=`Stopped after ${n} of ${d.n}: ${fe(e)}`;S.bk.done=null}
+ finally{S.bk.busy=false;render()}});
 /* ---- group chat ---- */
 const ms=t=>t?.toMillis?.()??0;
 const tm=t=>{const d=t?.toDate?.();return d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''};
@@ -1042,7 +1115,7 @@ const viewMaint=id=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!okImg(r.photo
 const showPrivacy=()=>openM(`<h2>Privacy notice</h2><p class="mut" style="margin-top:0">Under the Philippine Data Privacy Act (RA 10173):</p><p><b>What we collect:</b> your name, email, mobile number, ID type and a photo of your government ID, a live selfie that the owner compares with your ID (it is deleted once the owner decides), plus rent and payment records, receipts you upload and chat messages.</p><p><b>Why:</b> to verify who you are, link you to your unit, record rent payments, and contact you about rent.</p><p><b>Who can see it:</b> only you and the property owner. Your ID photo is not shown to other tenants.</p><p><b>How long:</b> the owner keeps it while you are a tenant and deletes your ID photo after your tenancy ends, unless the law requires otherwise. Payment records are kept as permanent receipts.</p><p><b>Your rights:</b> you may ask the owner to see, correct or delete your data.</p><div class="row"><button class="p" onclick="closeM()">Close</button></div>`);
 const net=()=>{let b=$('#offl');if(!b){b=document.createElement('div');b.id='offl';b.setAttribute('role','status');b.textContent='You are offline. Changes will sync when you reconnect.';document.body.appendChild(b)}b.classList.toggle('on',!navigator.onLine)};
 addEventListener('online',net);addEventListener('offline',net);net();
-Object.assign(window,{smsRem,mailRem,copyRem,setAutoChat,pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{bkOpt,bkMonths,bkDownload,bkDelete,smsRem,mailRem,copyRem,setAutoChat,pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
