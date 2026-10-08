@@ -6,8 +6,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Apartment Billing"><meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f6f5f2">
+<meta name="apple-mobile-web-app-title" content="Apartment Billing"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2a1b6e">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Apartment Billing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -326,6 +326,149 @@ img,svg,video{max-width:100%}
 .hero{min-height:0;padding-top:20px;padding-bottom:14px;justify-content:flex-start}
 .sub{margin-top:6px}
 .rc table{width:100%;border-collapse:collapse}.rc td{padding:8px 0;border-bottom:1px solid var(--line)}.rc td:last-child{text-align:right;font-weight:700}.rc .big{font-size:28px;font-weight:800;margin:8px 0}.rc h1{font-size:22px;color:var(--ink);text-shadow:none}
+
+/* =====================================================================
+   GLASSMORPHISM THEME  (override layer – logic/markup unchanged)
+   ===================================================================== */
+:root{
+ --acc:#6d5efc;--g1:#f0661a;--g2:#7c3aed;
+ --ink:#12152b;--mut:#4a5169;--line:rgba(18,21,43,.13);
+ --gl:rgba(255,255,255,.55);--gl2:rgba(255,255,255,.38);--gl3:rgba(255,255,255,.74);
+ --gb:rgba(255,255,255,.65);--gh:rgba(255,255,255,.8);--pill:rgba(255,255,255,.78);--msg:rgba(255,255,255,.7);
+ --gsh:0 10px 36px rgba(20,16,60,.28);
+ --blur:blur(24px) saturate(170%);
+ --ok:#0a7a52;--okb:rgba(16,185,129,.22);--warn:#8f4b00;--warnb:rgba(245,158,11,.28);--bad:#bd2227;--badb:rgba(239,68,68,.22);--vac:#434b60;--vacb:rgba(71,85,105,.18);
+ --sh:var(--gsh);--r:22px;
+ --fb:#5b4bf0;--fbi:#4a5169;--fbh:rgba(255,255,255,.45);--fbg:rgba(255,255,255,.55)
+}
+:root[data-theme=dark]{
+ --ink:#f3f5fc;--mut:#b9c0d4;--line:rgba(255,255,255,.14);
+ --gl:rgba(18,21,40,.46);--gl2:rgba(255,255,255,.08);--gl3:rgba(18,21,40,.72);
+ --gb:rgba(255,255,255,.18);--gh:rgba(255,255,255,.28);--pill:rgba(255,255,255,.16);--msg:rgba(255,255,255,.1);
+ --gsh:0 10px 36px rgba(0,0,0,.5);
+ --ok:#4fd6a0;--okb:rgba(52,211,153,.2);--warn:#f6b04c;--warnb:rgba(245,158,11,.22);--bad:#ff8a8e;--badb:rgba(248,113,113,.22);--vac:#b9c0d4;--vacb:rgba(255,255,255,.1);
+ --fb:#a5b1ff;--fbi:#b9c0d4;--fbh:rgba(255,255,255,.1);--fbg:rgba(255,255,255,.1)
+}
+html{background:#14112e}
+*{-webkit-tap-highlight-color:transparent;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.4) transparent}
+::selection{background:rgba(124,58,237,.35)}
+::placeholder{color:var(--mut);opacity:.75}
+option{background:#fff;color:#12152b}
+:root[data-theme=dark] option{background:#1b1e36;color:#f3f5fc}
+
+/* --- colourful backdrop the glass refracts --- */
+.bg{overflow:hidden;filter:saturate(1.15)}
+.bg::after{z-index:0;background:linear-gradient(160deg,rgba(88,40,170,.55) 0%,rgba(30,27,75,.5) 48%,rgba(140,56,20,.55) 100%)}
+:root[data-theme=dark] .bg::after{background:linear-gradient(160deg,rgba(20,10,52,.82) 0%,rgba(8,10,28,.84) 50%,rgba(42,16,10,.86) 100%)}
+.bg::before{content:"";position:absolute;inset:-12%;z-index:1;pointer-events:none;
+ background:radial-gradient(40vmax 40vmax at 14% 8%,rgba(124,92,255,.55),transparent 62%),radial-gradient(34vmax 34vmax at 92% 22%,rgba(255,122,47,.42),transparent 62%),radial-gradient(44vmax 44vmax at 68% 96%,rgba(236,72,153,.4),transparent 62%);
+ animation:drift 26s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate3d(-3%,3%,0) scale(1.08)}}
+
+/* --- glass panels --- */
+:root:root .card,:root:root .banner,:root:root .stat,:root:root .modal .card{
+ background:var(--gl);color:var(--ink);
+ -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+ border:1px solid var(--gb);border-radius:var(--r);
+ box-shadow:var(--gsh),inset 0 1px 0 var(--gh),inset 0 0 0 1px rgba(255,255,255,.05)}
+:root:root .modal .card{background:var(--gl3)}
+:root:root .stat{border-radius:18px}
+:root:root .banner{border-left-width:6px;color:var(--ink)}
+:root:root .banner.paid{background:linear-gradient(var(--okb),var(--okb)),var(--gl)!important;border-left-color:var(--ok)}
+:root:root .banner.overdue{background:linear-gradient(var(--badb),var(--badb)),var(--gl)!important;border-left-color:var(--bad)}
+:root:root .banner.due,:root:root .banner.unpaid{background:linear-gradient(var(--warnb),var(--warnb)),var(--gl)!important;border-left-color:var(--warn)}
+:root:root .door{background:var(--gl2);color:var(--ink);border:1px solid var(--gb);border-radius:18px;box-shadow:0 6px 20px rgba(20,16,60,.16),inset 0 1px 0 var(--gh)}
+:root:root .door:hover{box-shadow:0 16px 36px rgba(20,16,60,.28),inset 0 1px 0 var(--gh)}
+:root:root .plate{background:rgba(255,255,255,.14);color:var(--ink);border-bottom-width:3px}
+.stat b,.door .n,h2{color:var(--ink)}
+
+/* --- buttons --- */
+:root:root button{background:var(--gl2);color:var(--ink);border:1px solid var(--gb);
+ -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+ box-shadow:0 2px 10px rgba(20,16,60,.14),inset 0 1px 0 var(--gh)}
+:root:root button:hover{background:var(--gl3)}
+:root:root button.p{background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;border-color:rgba(255,255,255,.4);
+ box-shadow:0 8px 22px rgba(124,58,237,.38),inset 0 1px 0 rgba(255,255,255,.45)}
+:root:root button.p:hover{filter:brightness(1.08);background:linear-gradient(135deg,var(--g1),var(--g2))}
+:root:root button.ghost{background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.4)}
+:root:root .who{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+
+/* --- form fields --- */
+:root:root input,:root:root select,:root:root textarea{background:var(--gl2);color:var(--ink);border:1px solid var(--gb);
+ box-shadow:inset 0 1px 3px rgba(20,16,60,.1)}
+:root:root input:focus,:root:root select:focus,:root:root textarea:focus{border-color:var(--acc);box-shadow:0 0 0 4px rgba(109,94,252,.3);background:var(--gl3)}
+.srch svg{stroke:var(--mut)}
+
+/* --- chips / tabs / badges --- */
+:root:root .tabs{background:var(--gl2);border:1px solid var(--gb);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+:root:root .tabs button{background:transparent;border-color:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+:root:root .chips button{background:var(--gl2);border:1px solid var(--gb)}
+:root:root .tabs button.on,:root:root .chips button.on{background:linear-gradient(135deg,var(--g1),var(--g2));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(124,58,237,.35)}
+.badge{box-shadow:inset 0 0 0 1px rgba(255,255,255,.4)}
+.grp h3 span{background:var(--gl2);border:1px solid var(--gb)}
+
+/* --- chat --- */
+:root:root .chat .log{background:var(--gl2);border:1px solid var(--gb)}
+:root:root .msg{background:var(--msg);color:var(--ink);border:1px solid var(--gb);box-shadow:0 2px 8px rgba(20,16,60,.1)}
+:root:root .msg.me{background:linear-gradient(135deg,rgba(240,102,26,.38),rgba(124,58,237,.38))}
+
+/* --- top bar: full-width frosted glass --- */
+:root:root .nav{background:var(--gl);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+ border:0;border-bottom:1px solid var(--gb);box-shadow:0 8px 30px rgba(20,16,60,.25),inset 0 -1px 0 rgba(255,255,255,.1)}
+:root:root .nav button[onclick^="page("]{background:transparent;color:var(--fbi);border:0;box-shadow:none;
+ -webkit-backdrop-filter:none;backdrop-filter:none;border-radius:14px;margin:6px 0;min-height:44px}
+:root:root .nav button[onclick^="page("]:hover{background:var(--fbh);color:var(--ink)}
+:root:root .nav button[onclick^="page("].on{background:var(--pill);color:var(--fb);box-shadow:0 4px 14px rgba(20,16,60,.18),inset 0 1px 0 var(--gh)}
+:root:root .nav button[onclick^="page("].on::after{display:none}
+:root:root .nav button:not([onclick^="page("]){background:var(--fbg);color:var(--ink);border:1px solid var(--gb)}
+:root:root .nav button:not([onclick^="page("]):hover{background:var(--pill)}
+:root:root .nav button.out{background:var(--badb);color:var(--bad)}
+:root:root .nav button.out:hover{background:var(--bad);color:#fff}
+:root:root .nav .sep{background:var(--line)}
+
+/* --- overlays, toasts, loader, install button --- */
+:root:root .modal{background:rgba(14,12,40,.38);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+:root[data-theme=dark] .modal{background:rgba(0,0,0,.5)}
+:root:root .toast{background:rgba(20,22,44,.6);color:#fff;border:1px solid rgba(255,255,255,.22);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+:root:root #loader{background:linear-gradient(160deg,#2a1b6e 0%,#1a1442 55%,#5b2410 100%);color:#fff}
+:root:root .ldi{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);box-shadow:0 14px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.4)}
+:root:root .ldi svg{stroke:#fff}
+:root:root .ldn{color:#fff}:root:root .ldb{background:rgba(255,255,255,.22)}
+:root:root .skl{background:linear-gradient(90deg,rgba(255,255,255,.12) 25%,rgba(255,255,255,.32) 50%,rgba(255,255,255,.12) 75%);background-size:200% 100%}
+#fab .fb{background:linear-gradient(135deg,rgba(240,102,26,.92),rgba(124,58,237,.92));border:1px solid rgba(255,255,255,.45);box-shadow:0 10px 28px rgba(124,58,237,.45),inset 0 1px 0 rgba(255,255,255,.5);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+#fab .fb:hover{background:linear-gradient(135deg,rgba(255,122,47,.95),rgba(139,92,246,.95))}
+#fab .fb::after{border-color:rgba(167,139,250,.7)}
+#fab .fx{background:rgba(20,22,44,.72);border-color:rgba(255,255,255,.55);box-shadow:none}
+
+/* --- phones --- */
+@media(max-width:480px){
+ :root{--r:20px}
+ :root:root .card,:root:root .modal .card{border-radius:20px}
+ :root:root .modal .card{border-radius:24px}
+ .wrap{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+ :root:root .stat{border-radius:16px}
+}
+/* login/verify screens have no top bar: keep the title clear of the notch / status bar */
+.hero{padding-top:max(20px,calc(env(safe-area-inset-top,0px) + 10px))}
+.wrap:has(.nav) .hero{padding-top:20px}
+
+/* browsers without backdrop-filter: make the glass more solid so text stays readable */
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+ :root{--gl:rgba(255,255,255,.92);--gl2:rgba(255,255,255,.7);--gl3:rgba(255,255,255,.97)}
+ :root[data-theme=dark]{--gl:rgba(26,29,48,.94);--gl2:rgba(255,255,255,.1);--gl3:rgba(26,29,48,.98)}
+}
+@media print{
+ :root:root .card,:root:root .door,:root:root .stat,:root:root .banner{background:#fff!important;-webkit-backdrop-filter:none;backdrop-filter:none;color:#000;box-shadow:none;border:1px solid #ccc}
+}
+
+/* --- unit photos --- */
+:root:root .dph{display:block;width:100%;padding:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;min-height:0;cursor:zoom-in;overflow:hidden;line-height:0;transform:none}
+:root:root .dph:hover{background:transparent;transform:none}
+.dph img{display:block;width:100%;height:150px;object-fit:cover;transition:transform .4s var(--ez)}
+.dph:hover img{transform:scale(1.04)}
+:root:root .dph.big{border-radius:16px;border:1px solid var(--gb);margin-bottom:14px}
+.dph.big img{height:auto;max-height:260px;aspect-ratio:16/9}
+.dph:focus-visible{outline:3px solid #8b9bff;outline-offset:-3px}
 </style>
 </head>
 <body>
@@ -481,7 +624,7 @@ function tenantView(a){
   overdue:['Your rent is overdue',`${money(owed(a))}${late(a)?' (incl. '+money(late(a))+' late fee)':''} was due on ${fmt(a.due)}, ${-d} day${-d>1?'s':''} ago. Please pay as soon as possible.`]}[s];
  const n={overdue:`Overdue by ${-d} day(s): ${money(a.rent)}`,due:`Payment due ${d===0?'today':'in '+d+' day(s)'}: ${money(a.rent)}`,unpaid:`Upcoming payment on ${fmt(a.due)}`,paid:'Payment received. Nothing to do.'}[s];
  const pgv=S.page,B=`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
- <div class="card"><h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
+ <div class="card">${doorPic(a,"big")}<h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
  `,N=`<div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div>${payNotes()}${repNotes()}<p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`;
  return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reportCard(a,s)}
 const repNotes=()=>S.reps.slice().sort((x,y)=>ms(y.createdAt)-ms(x.createdAt)).map(r=>`<div class="note">${badge(r.status)} ${monthLabel(r.month)}: ${r.status==='approved'?'Owner confirmed your '+money(r.amount)+' payment.':r.status==='declined'?'Declined. '+esc(r.reason||'No reason given.'):'Waiting for the owner to confirm '+money(r.amount)+'.'}</div>`).join('');
@@ -548,7 +691,7 @@ function paintUnits(){
   if(S.st==='unpaid'?!un(x):S.st!=='all'&&x.s!==S.st)return false;
   if(!q)return true;
   return[x.a.unit,x.a.tenantName,LABEL[x.s],x.a.rent,x.s==='due'?'unpaid':''].join(' ').toLowerCase().includes(q)});
- const card=({a,s})=>{const cur=(a.due||'').slice(0,7)===ym;return`<div class="door s-${s}"><div class="plate">${esc(a.unit)}${badge(s)}</div>
+ const card=({a,s})=>{const cur=(a.due||'').slice(0,7)===ym;return`<div class="door s-${s}">${doorPic(a)}<div class="plate">${esc(a.unit)}${badge(s)}</div>
  <div class="dbody"><div class="n">${vacant(a)?'Empty unit':esc(a.tenantName)}</div>Rent ${money(a.rent)}${late(a)?' + '+money(late(a))+' late fee':''}<br>${vacant(a)?'Ready for a new tenant':s==='none'?'No bill for '+monthLabel(ym):s==='paid'&&!cur?'Paid for '+monthLabel(ym):'Due '+fmt(a.due)+(s==='overdue'?' · '+(-days(a))+' days late':'')}</div>
  <div class="dact">${(s==='unpaid'||s==='due'||s==='overdue')?`<button class="s p" onclick="markPaid('${a.id}')">Mark paid</button>`:''}${s==='paid'?`<button class="s" onclick="receipt('${a.id}','${ym}')">Receipt</button>`:''}<button class="s" onclick="edit('${a.id}')">Edit</button></div></div>`};
  const GR=[['overdue','Overdue'],['due','Due soon'],['unpaid','Not paid yet'],['paid','Paid'],['none','No bill this month'],['vacant','Vacant']];
@@ -658,14 +801,27 @@ const decline=uid=>run(async()=>{if(S.users.find(x=>x.id===uid)?.status==='appro
  await updateDoc(doc(db,'users',uid),{status:'declined',reason:r,reviewedAt:serverTimestamp()});closeM()});
 function edit(id){
  const a=S.units.find(x=>x.id===id)||{unit:'',rent:8000,due:off(30),paid:false,tenantUid:''};
+ S.unitPhoto=undefined;S.unitPhotoOld=okImg(a.photo)?a.photo:'';
  const ppl=S.users.filter(u=>u.status==='approved'&&(u.id===a.tenantUid||!S.units.some(x=>x.tenantUid===u.id)));
  openM(`<h2>${id?'Edit '+esc(a.unit):'Add unit'}</h2>
  <label for="f_unit">Unit name</label><input id="f_unit" value="${esc(a.unit)}" oninput="checkDup('${id||''}',this.value)" autocomplete="off"><div class="err" id="f_dup" style="margin:6px 0 0"></div>
+ <label for="f_photo">Unit photo (optional)</label><input id="f_photo" type="file" accept="image/*" onchange="pickUnitPhoto(this)"><div id="f_pprev" class="prev">${unitPrev()}</div><div class="err" id="f_perr" style="margin:6px 0 0"></div>
  <label for="f_ten">Tenant</label><select id="f_ten"><option value="">Empty / vacant</option>${ppl.map(u=>`<option value="${u.id}" ${u.id===a.tenantUid?'selected':''}>${esc(u.name)}</option>`).join('')}</select>
  <label for="f_rent">Monthly rent</label><input id="f_rent" type="number" min="0" value="${a.rent}"><label for="f_late">Late fee (optional)</label><input id="f_late" type="number" min="0" value="${a.lateFee||0}"><label for="f_grace">Charge late fee after (days overdue)</label><input id="f_grace" type="number" min="0" value="${a.grace??3}">
  <label for="f_due">Due date</label><input id="f_due" type="date" value="${a.due}" ${a.paid&&a.tenantUid?'disabled':''}>
  <label for="f_paid">Payment</label><select id="f_paid" ${a.paid&&a.tenantUid?'disabled':''}><option value="0" ${!a.paid?'selected':''}>Not paid</option><option value="1" ${a.paid?'selected':''}>Paid</option></select>${a.paid&&a.tenantUid?'<p class="mut" style="margin:6px 0 0">This payment is recorded and locked. Use Next month for the next bill.</p>':''}
  <div class="row">${id?`<button onclick="nextCycle('${id}')" title="Move due date +1 month and reset to not paid">Next month</button><button onclick="del('${id}')">Delete</button>`:''}<button onclick="closeM()">Cancel</button><button class="p" onclick="saveUnit('${id||''}')">Save</button></div>`)}
+/* ---- unit photos (stored compressed in the unit document) ---- */
+const okImg=v=>typeof v==='string'&&/^data:image\/(jpeg|png|webp);base64,/.test(v);
+const doorPic=(a,cls='')=>okImg(a.photo)?`<button type="button" class="dph ${cls}" onclick="viewUnit('${a.id}')" aria-label="View photo of unit ${esc(a.unit)}"><img src="${a.photo}" alt="Unit ${esc(a.unit)}" loading="lazy"></button>`:'';
+const viewUnit=id=>{const a=S.units.find(x=>x.id===id)||(S.unit&&S.unit.id===id?S.unit:null);if(!a||!okImg(a.photo))return;openM(`<h2>Unit ${esc(a.unit)}</h2><img class="idimg" src="${a.photo}" alt="Unit ${esc(a.unit)}"><div class="row"><button onclick="closeM()">Close</button></div>`)};
+const unitPrev=()=>{const p=S.unitPhoto!==undefined?S.unitPhoto:S.unitPhotoOld;return p?`<img class="idimg" src="${p}" alt="Unit photo preview"><div class="row" style="margin-top:8px;justify-content:flex-start"><button type="button" class="s" onclick="rmUnitPhoto()">Remove photo</button></div>`:''};
+async function pickUnitPhoto(el){const f=el.files[0];if(!f)return;
+ if(!f.type.startsWith('image/')||f.size>15e6){formErr('f_perr','Choose a JPG or PNG photo under 15 MB.');el.value='';return}
+ formErr('f_perr','Processing photo…');
+ try{const o=await compress(f,1000,300000);if(o.length>700000)throw new Error('That photo is too large. Choose a smaller one.');
+  S.unitPhoto=o;formErr('f_perr','');$('#f_pprev').innerHTML=unitPrev()}catch(e){formErr('f_perr',e.message||'Could not use that photo.');el.value=''}}
+const rmUnitPhoto=()=>{S.unitPhoto='';const i=$('#f_photo');if(i)i.value='';$('#f_pprev').innerHTML=unitPrev()};
 const normU=x=>String(x||'').trim().replace(/\s+/g,' ').toLowerCase();
 const dupUnit=(id,name)=>S.units.some(x=>x.id!==id&&normU(x.unit)===normU(name));
 const checkDup=(id,v)=>{const e=$('#f_dup');if(e)e.textContent=v.trim()&&dupUnit(id,v)?'A unit with this name already exists.':''};
@@ -678,6 +834,7 @@ const saveUnit=id=>run(async()=>{const unit=$('#f_unit').value.trim().replace(/\
  const ref=id?doc(db,'units',id):doc(collection(db,'units')),ym=due.slice(0,7),b=writeBatch(db);
  if(d.paid&&!hasPay(ref.id,ym)){if(!await ask('Save as paid?','This creates a permanent payment record for '+monthLabel(ym)+' that cannot be edited or deleted.','Save as paid'))return;
   b.set(doc(db,'payments',payId(ref.id,ym)),payDoc({...d,id:ref.id},ym))}
+ if(S.unitPhoto!==undefined){if(S.unitPhoto)d.photo=S.unitPhoto;else if(id)d.photo=deleteField()}
  id?b.update(ref,d):b.set(ref,d);
  await b.commit();closeM()});
 const nextCycle=id=>run(async()=>{const a=S.units.find(x=>x.id===id),d=new Date(a.due+'T00:00:00');d.setMonth(d.getMonth()+1);await updateDoc(doc(db,'units',id),{due:iso(d),paid:false});closeM();toast('Moved to next month')});
@@ -756,7 +913,7 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
