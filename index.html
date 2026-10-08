@@ -68,6 +68,7 @@ textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--line);borde
 .prev img,.idimg{display:block;width:100%;max-height:300px;object-fit:contain;background:#0001;border-radius:10px;margin-top:10px}
 .idimg{max-height:340px}
 .stat.p{border-color:var(--warn)}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;font-weight:500;color:var(--mut);margin:12px 0 0}.chk input{width:auto;margin-top:2px}.rh{margin:16px 0 4px;font-size:14px;font-weight:800}
 .reg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .reg:last-child{border:0}.regr{display:flex;align-items:center;gap:8px}
 .nav{display:flex;gap:6px;background:rgba(20,16,12,.55);backdrop-filter:blur(10px);padding:6px;border-radius:14px;margin-bottom:14px;position:sticky;top:8px;z-index:3}
@@ -649,8 +650,8 @@ function tenantView(a){
  const n={overdue:`Overdue by ${-d} day(s): ${money(a.rent)}`,due:`Payment due ${d===0?'today':'in '+d+' day(s)'}: ${money(a.rent)}`,unpaid:`Upcoming payment on ${fmt(a.due)}`,paid:'Payment received. Nothing to do.'}[s];
  const pgv=S.page,B=`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
  <div class="card">${doorPic(a,"big")}<h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
- `,N=`<div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div>${payNotes()}${repNotes()}<p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`;
- return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reportCard(a,s)+maintCard()}
+ `,N=`<div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div>${remFeed(a)}${payNotes()}${repNotes()}<p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`;
+ return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reminderCard()+reportCard(a,s)+maintCard()}
 const repNotes=()=>S.reps.slice().sort((x,y)=>ms(y.createdAt)-ms(x.createdAt)).map(r=>`<div class="note">${badge(r.status)} ${monthLabel(r.month)}: ${r.status==='approved'?'Owner confirmed your '+money(r.amount)+' payment.':r.status==='declined'?'Declined. '+esc(r.reason||'No reason given.'):'Waiting for the owner to confirm '+money(r.amount)+'.'}</div>`).join('');
 function reportCard(a,s){
  if(s==='paid'||vacant(a))return'';
@@ -699,6 +700,7 @@ const setQ=v=>{S.q=v;paintUnits()};
 const setSt=k=>{S.st=k;paintUnits();document.querySelectorAll('#u_chips button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))};
 function paintUnits(){
  const rp=$('#u_reps');if(rp){const L=pendRep();rp.innerHTML=L.length?`<div class="card"><h2>Payment reports <span class="dot" style="position:static">${L.length}</span></h2>${L.map(r=>`<div class="reg"><div><b>Unit ${esc(r.unit)} · ${esc(r.tenantName)}</b><br><span class="mut">${money(r.amount)} for ${monthLabel(r.month)} · paid ${fmt(r.paidDate)}${r.ref?' · Ref '+esc(r.ref):''}</span></div><div class="regr">${r.proof?`<button class="s" onclick="viewProof('${r.id}')">View proof</button>`:''}<button class="s p" onclick="approveRep('${r.id}')">Approve</button><button class="s" onclick="declineRep('${r.id}')">Decline</button></div></div>`).join('')}</div>`:''}
+ const rm=$('#u_rem');if(rm)rm.innerHTML=ownerRemCard();
  const ss=$('#u_stats'),ll=$('#u_list');if(!ss||!ll)return;
  const A=S.units,ym=S.month,pend=S.users.filter(u=>u.status==='pending').length;
  const M=A.map(a=>({a,...mstat(a,ym)}));
@@ -722,7 +724,7 @@ function paintUnits(){
  ll.innerHTML=list.length?GR.map(([k,t])=>{const g=list.filter(x=>x.s===k);if(!g.length)return'';if(k==='overdue')g.sort((x,y)=>days(x.a)-days(y.a));return`<div class="grp"><h3 class="g-${k}">${t}<span>${g.length}</span></h3><div class="doors">${g.map(card).join('')}</div></div>`}).join(''):`<div class="empty">${A.length?'No units match your filter.':'Add your first unit to start billing.'}</div>`}
 function unitsView(){
  const chip=(k,l)=>`<button data-k="${k}" class="${S.st===k?'on':''}" onclick="setSt('${k}')">${l}</button>`;
- return`<div id="u_reps"></div><div class="stats" id="u_stats"></div>
+ return`<div id="u_reps"></div><div id="u_rem"></div><div class="stats" id="u_stats"></div>
  <div class="card"><div class="head"><h2 style="margin:0">Units</h2><div class="regr"><button class="s" onclick="exportCsv()">CSV</button><button class="s" onclick="printReport()">PDF</button><button class="p s" onclick="edit()">Add unit</button></div></div>
  <div class="tools">
   <div class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="u_q" type="search" placeholder="Filter by unit, tenant or status…" autocomplete="off" value="${esc(S.q)}" oninput="setQ(this.value)" aria-label="Filter units"></div>
@@ -882,12 +884,84 @@ const showReceipt=p=>openM(`<div class="rc">${receiptBody(p)}</div><div class="r
 const receipt=(unitId,ym)=>{const p=S.pays.find(x=>x.unitId===unitId&&x.month===ym);if(!p){toast('No payment record found.','err');return}showReceipt(p)};
 const printReceipt=id=>{const p=S.pays.find(x=>x.id===id);if(!p){toast('Receipt is still saving. Try again in a moment.','warn');return}popup('Receipt',receiptBody(p))};
 const payNotes=()=>S.pays.slice().sort((x,y)=>ms(y.paidAt)-ms(x.paidAt)).map(p=>`<div class="note">${badge('paid')} ${monthLabel(p.month)}: payment of ${money(p.amount)} received. <button class="s" onclick="receipt('${p.unitId}','${p.month}')">View receipt</button></div>`).join('');
-const reminderCard=()=>('Notification' in window&&Notification.permission==='default')?`<div class="card"><div class="head"><h2 style="margin:0">Rent reminders</h2><button class="p s" onclick="enableReminders()">Turn on</button></div><p class="mut" style="margin:0">Get a notification when your rent is due soon or overdue.</p></div>`:'';
-const enableReminders=async()=>{const r=await Notification.requestPermission();toast(r==='granted'?'Reminders turned on':'Reminders blocked',r==='granted'?'ok':'warn');render()};
-function remind(){try{const a=S.unit;if(S.owner||!a||!S.user||!('Notification' in window)||Notification.permission!=='granted')return;
- const st=status(a);if(st!=='overdue'&&st!=='due')return;const k='rem_'+a.id+'_'+a.due+'_'+iso(new Date());if(localStorage.getItem(k))return;localStorage.setItem(k,'1');
- const d=days(a),t=st==='overdue'?'Rent overdue':'Rent due '+(d===0?'today':'in '+d+' day(s)'),o={body:money(owed(a))+' for '+a.unit+' · due '+fmt(a.due),icon:'icon-192.png',tag:'rent'};
- navigator.serviceWorker?.ready.then(r=>r.showNotification(t,o)).catch(()=>new Notification(t,o))}catch(e){}}
+const reminderCard=()=>('Notification' in window&&Notification.permission==='default')?`<div class="card"><div class="head"><h2 style="margin:0">Notifications</h2><button class="p s" onclick="enableReminders()">Turn on</button></div><p class="mut" style="margin:0">${S.owner?'Get notified about payment reports, new registrations, maintenance requests, chat messages and a daily summary of unpaid rent.':'Get notified when your rent is coming up or overdue, when the owner confirms a payment, and when someone writes in the group chat.'} They appear while the app is open or running in the background.</p></div>`:'';
+const enableReminders=async()=>{const r=await Notification.requestPermission();toast(r==='granted'?'Notifications turned on':'Notifications blocked',r==='granted'?'ok':'warn');render()};
+/* ---- automatic reminders + notifications ---- */
+const seenOnce=new Set();
+const once=k=>{if(seenOnce.has(k))return false;seenOnce.add(k);try{if(localStorage.getItem(k))return false;localStorage.setItem(k,'1')}catch(e){}return true};
+function notify(title,body,tag){try{if(!('Notification' in window)||Notification.permission!=='granted')return;
+ const o={body,icon:'icon-192.png',tag:tag||'apt'},reg=navigator.serviceWorker?.getRegistration?.();
+ (reg||Promise.resolve(null)).then(r=>r?r.showNotification(title,o):new Notification(title,o)).catch(()=>{try{new Notification(title,o)}catch(e){}})}catch(e){}}
+// toast while the page is in front, system notification while it is in the background
+const alertUser=(title,body,tag)=>{if(document.hidden)notify(title,body,tag);else toast(body?title+': '+body:title,'warn')};
+// remembers what was already seen (per user, per device) so only new or changed items alert
+const W={};
+function watch(k,pairs){
+ if(!S.user)return[];
+ const key='w_'+S.user.uid+'_'+k,cur=Object.fromEntries(pairs);
+ if(!(key in W)){let p=null;try{p=JSON.parse(localStorage.getItem(key)||'null')}catch(e){}W[key]=p;W[key+'q']=p?0:Date.now()+4000}
+ const p=W[key],quiet=Date.now()<W[key+'q'];
+ const out=(p&&!quiet)?pairs.filter(([id,v])=>p[id]!==v).map(([id,v])=>[id,v,p[id]]):[];
+ W[key]=Object.fromEntries(Object.entries({...(p||{}),...cur}).slice(-200));
+ try{localStorage.setItem(key,JSON.stringify(W[key]))}catch(e){}
+ return out}
+const shiftDay=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return iso(d)};
+// the tenant's schedule of automatic reminder messages (7 days before, 3, 1, due day, then overdue)
+function remFeed(a){
+ if(vacant(a)||a.paid)return'';
+ const d=days(a),rent=money(a.rent),L=[];
+ if(d<0)L.push(['overdue',off(0),`Your rent is ${-d} day${-d>1?'s':''} overdue. ${money(owed(a))}${late(a)?' (incl. '+money(late(a))+' late fee)':''} is still unpaid. Please pay as soon as possible, or report your payment if you already paid.`]);
+ [[0,`Your rent of ${rent} is due today.`,'due'],[1,`Your rent of ${rent} is due tomorrow.`,'due'],[3,`Reminder: your rent of ${rent} is due in 3 days.`,'due'],[7,`Heads up: your rent of ${rent} is due in 7 days (${fmt(a.due)}).`,'unpaid']].forEach(([n,t,k])=>{if(d<=n)L.push([k,shiftDay(a.due,-n),t])});
+ return`<h3 class="rh">Automatic reminders</h3>`+L.map(([k,dt,t])=>`<div class="note">${badge(k)} <span class="mut">${fmt(dt)}</span><br>${esc(t)}</div>`).join('')}
+/* owner: reminder list, email/copy a message, optional automatic group-chat post */
+const remText=a=>{const d=days(a);return`Hello ${a.tenantName||'tenant'}, this is a friendly reminder that rent for unit ${a.unit} (${money(owed(a))}) ${d<0?'was due on '+fmt(a.due)+' and is now '+(-d)+' day'+(-d>1?'s':'')+' overdue':d===0?'is due today':'is due on '+fmt(a.due)+' (in '+d+' day'+(d>1?'s':'')+')'}. Please pay or report your payment in the Apartment Billing app. Thank you!`};
+const mailRem=id=>{const a=S.units.find(x=>x.id===id),u=a&&S.users.find(x=>x.id===a.tenantUid);if(!a)return;if(!u?.email){toast('No email on file for this tenant.','warn');return}
+ location.href='mailto:'+encodeURIComponent(u.email)+'?subject='+encodeURIComponent('Rent reminder · Unit '+a.unit)+'&body='+encodeURIComponent(remText(a))};
+const copyRem=id=>{const a=S.units.find(x=>x.id===id);if(!a)return;(navigator.clipboard?navigator.clipboard.writeText(remText(a)):Promise.reject()).then(()=>toast('Reminder copied. Paste it into SMS or Messenger.')).catch(()=>toast('Could not copy.','err'))};
+const autoChatOn=()=>{try{return !!S.user&&localStorage.getItem('autoChat_'+S.user.uid)==='1'}catch(e){return false}};
+const setAutoChat=on=>{try{localStorage.setItem('autoChat_'+S.user.uid,on?'1':'0')}catch(e){}toast(on?'Automatic chat reminders on':'Automatic chat reminders off');render()};
+function ownerRemCard(){
+ const L=S.units.filter(a=>!vacant(a)&&!a.paid&&days(a)<=7).sort((x,y)=>days(x)-days(y));
+ return reminderCard()+`<div class="card"><h2>Rent reminders ${L.length?`<span class="badge due">${L.length}</span>`:''}</h2>`+
+ (L.length?L.map(a=>{const d=days(a);return`<div class="reg"><div><b>Unit ${esc(a.unit)} · ${esc(a.tenantName)}</b><br><span class="mut">${d<0?'Overdue by '+(-d)+' day'+(-d>1?'s':''):d===0?'Due today':'Due in '+d+' day'+(d>1?'s':'')} · ${money(owed(a))}</span></div><div class="regr"><button class="s p" onclick="mailRem('${a.id}')">Email</button><button class="s" onclick="copyRem('${a.id}')">Copy</button></div></div>`}).join(''):'<p class="mut" style="margin:0">No rent due in the next 7 days and nothing overdue.</p>')+
+ `<label class="chk"><input type="checkbox" ${autoChatOn()?'checked':''} onchange="setAutoChat(this.checked)"><span>Automatically post a rent reminder in the group chat (3 days before, on the due date, and when overdue). It is sent when you open this app and never shows names or amounts.</span></label></div>`}
+// owner: posts one generic reminder per day to the group chat (fixed message id, so it never duplicates)
+function autoChatPost(){
+ if(!autoChatOn()||!S.units.length)return;
+ const day=iso(new Date()),k='auto_'+S.user.uid+'_'+day;if(seenOnce.has(k))return;seenOnce.add(k);
+ const U=S.units.filter(a=>!vacant(a)&&!a.paid),L=[],in3=U.find(a=>days(a)===3);
+ if(in3)L.push(`Rent is due in 3 days (${fmt(in3.due)}). Please pay on time.`);
+ if(U.some(a=>days(a)===0))L.push('Rent is due today. Please pay or report your payment in the app.');
+ if(U.some(a=>days(a)===-1||days(a)===-7))L.push('Some units have overdue rent. Please pay or report your payment as soon as possible.');
+ if(!L.length)return;
+ const ref=doc(db,'messages','auto-'+day);
+ getDoc(ref).then(x=>{if(!x.exists())return setDoc(ref,{text:'🔔 Automatic reminder: '+L.join(' '),uid:S.user.uid,name:'Owner',fromOwner:true,createdAt:serverTimestamp()})}).catch(()=>seenOnce.delete(k))}
+function remind(){try{
+ if(!S.user||!S.ready)return;
+ const me=S.user.uid,day=iso(new Date());
+ // new group-chat messages from other people
+ if(S.msgs?.length){const ch=watch('chat',S.msgs.map(m=>[m.id,1])).map(c=>S.msgs.find(m=>m.id===c[0])).filter(m=>m&&m.uid!==me);
+  if(ch.length&&!($('#log')&&!document.hidden)){const m=ch[ch.length-1];alertUser(ch.length>1?ch.length+' new chat messages':(m.fromOwner?'Owner':m.name||'Tenant'),ch.length>1?'Open the group chat to read them.':String(m.text||'').slice(0,100),'chat')}}
+ if(S.owner){
+  watch('rep',pendRep().map(r=>[r.id,1])).forEach(([id])=>{const r=S.reps.find(x=>x.id===id);r&&alertUser('Payment reported','Unit '+r.unit+' · '+money(r.amount)+' · '+(r.tenantName||''),'rep')});
+  watch('reg',S.users.filter(u=>u.status==='pending').map(u=>[u.id,1])).forEach(([id])=>{const u=S.users.find(x=>x.id===id);u&&alertUser('New tenant registration',(u.name||'A tenant')+' is waiting for review','reg')});
+  watch('mt',(S.mt||[]).filter(r=>r.status==='open').map(r=>[r.id,1])).forEach(([id])=>{const r=S.mt.find(x=>x.id===id);r&&alertUser('New maintenance request',(r.unit?'Unit '+r.unit+': ':'')+r.title,'mt')});
+  const od=S.units.filter(a=>status(a)==='overdue'),du=S.units.filter(a=>status(a)==='due'),pr=pendRep().length,sm=[];
+  if(od.length)sm.push(od.length+' overdue ('+money(od.reduce((t,a)=>t+owed(a),0))+')');
+  if(du.length)sm.push(du.length+' due within 3 days');
+  if(pr)sm.push(pr+' payment report'+(pr>1?'s':'')+' to review');
+  if(sm.length&&once('sum_'+me+'_'+day))alertUser('Rent summary',sm.join(' · '),'sum');
+  autoChatPost();return}
+ // tenant
+ if(S.profile)watch('prof',[['s',S.profile.status||'']]).forEach(([,st])=>{if(st==='approved')alertUser('Registration approved','You can now see your rent and payment history.','prof');if(st==='declined')alertUser('Registration declined',S.profile.reason||'Open the app for details.','prof')});
+ watch('rep',S.reps.map(r=>[r.id,r.status])).forEach(([id,st])=>{const r=S.reps.find(x=>x.id===id);if(!r)return;
+  if(st==='approved')alertUser('Payment confirmed',money(r.amount)+' for '+monthLabel(r.month),'rep');
+  if(st==='declined')alertUser('Payment report declined',r.reason||'Open the app for details.','rep')});
+ watch('mt',(S.mt||[]).map(r=>[r.id,r.status])).forEach(([id,st,old])=>{const r=S.mt.find(x=>x.id===id);if(r&&old&&st!==old)alertUser('Maintenance update',r.title+' is now '+(MT_ST[st]||st).toLowerCase(),'mt')});
+ const a=S.unit;if(!a||S.profile?.status!=='approved'||a.paid||vacant(a))return;
+ const d=days(a);if(d>7||S.reps.some(r=>r.status==='pending'&&r.id===payId(a.id,a.due.slice(0,7))))return;
+ if(once('rem_'+a.id+'_'+a.due+'_'+day))alertUser(d<0?'Rent overdue by '+(-d)+' day'+(-d>1?'s':''):d===0?'Rent due today':d===1?'Rent due tomorrow':'Rent due in '+d+' days',money(owed(a))+' for unit '+a.unit+' · due '+fmt(a.due),'rent')
+}catch(e){}}
 /* ---- group chat ---- */
 const ms=t=>t?.toMillis?.()??0;
 const tm=t=>{const d=t?.toDate?.();return d?d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):''};
@@ -957,7 +1031,7 @@ const viewMaint=id=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!okImg(r.photo
 const showPrivacy=()=>openM(`<h2>Privacy notice</h2><p class="mut" style="margin-top:0">Under the Philippine Data Privacy Act (RA 10173):</p><p><b>What we collect:</b> your name, email, ID type and a photo of your government ID, a live selfie that the owner compares with your ID (it is deleted once the owner decides), plus rent and payment records, receipts you upload and chat messages.</p><p><b>Why:</b> to verify who you are, link you to your unit, and record rent payments.</p><p><b>Who can see it:</b> only you and the property owner. Your ID photo is not shown to other tenants.</p><p><b>How long:</b> the owner keeps it while you are a tenant and deletes your ID photo after your tenancy ends, unless the law requires otherwise. Payment records are kept as permanent receipts.</p><p><b>Your rights:</b> you may ask the owner to see, correct or delete your data.</p><div class="row"><button class="p" onclick="closeM()">Close</button></div>`);
 const net=()=>{let b=$('#offl');if(!b){b=document.createElement('div');b.id='offl';b.setAttribute('role','status');b.textContent='You are offline. Changes will sync when you reconnect.';document.body.appendChild(b)}b.classList.toggle('on',!navigator.onLine)};
 addEventListener('online',net);addEventListener('offline',net);net();
-Object.assign(window,{pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+Object.assign(window,{mailRem,copyRem,setAutoChat,pickSelfie,newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
