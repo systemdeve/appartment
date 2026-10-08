@@ -469,6 +469,14 @@ option{background:#fff;color:#12152b}
 :root:root .dph.big{border-radius:16px;border:1px solid var(--gb);margin-bottom:14px}
 .dph.big img{height:auto;max-height:260px;aspect-ratio:16/9}
 .dph:focus-visible{outline:3px solid #8b9bff;outline-offset:-3px}
+
+/* --- maintenance, consent, offline --- */
+:root:root .chk{display:flex;align-items:flex-start;gap:10px;margin-top:14px;font-weight:400;font-size:13px;color:var(--ink)}
+:root:root .chk input{width:20px;height:20px;min-height:0;flex:none;padding:0;margin:2px 0 0;accent-color:#7c3aed;box-shadow:none}
+.chk a{color:var(--fb);text-decoration:underline}
+:root:root textarea{min-height:84px;resize:vertical}
+#offl{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);z-index:60;max-width:calc(100% - 32px);padding:12px 18px;border-radius:16px;font:600 13px Arial,sans-serif;color:#fff;background:rgba(190,40,50,.55);border:1px solid rgba(255,255,255,.35);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);transition:transform .35s var(--ez)}
+#offl.on{transform:translate(-50%,0)}
 </style>
 </head>
 <body>
@@ -524,7 +532,7 @@ const badge=(k)=>`<span class="badge ${k==='approved'?'paid':k==='declined'?'ove
 if(configured){
  const app=initializeApp(firebaseConfig);auth=getAuth(app);try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}catch(e){db=getFirestore(app)}
  onAuthStateChanged(auth,u=>{
-  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],pays:[],reps:[],redo:false,msg:'',idData:'',msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
+  unsubs.forEach(f=>f());unsubs=[];Object.assign(S,{user:u,ready:false,profile:null,unit:null,users:[],units:[],pays:[],reps:[],redo:false,msg:'',idData:'',mt:[],msgs:[],lastRead:0,chatOn:false,page:null,draft:''});
   S.owner=!!u&&u.emailVerified&&OWNER_EMAILS.includes((u.email||'').toLowerCase());
   if(!u||(!S.owner&&OWNER_EMAILS.includes((u.email||'').toLowerCase()))){S.ready=true;return render()}
   const bad=e=>{S.ready=true;S.msg=fe(e);render()};
@@ -533,12 +541,14 @@ if(configured){
    unsubs.push(onSnapshot(collection(db,'paymentReports'),s=>{S.reps=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'payments'),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(collection(db,'units'),s=>{S.units=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.unit.localeCompare(b.unit,undefined,{numeric:true}));S.ready=true;render()},bad));
+   unsubs.push(onSnapshot(collection(db,'maintenance'),s=>{S.mt=s.docs.map(d=>({id:d.id,...d.data()}));render()},bad));
    ensureChat();
   }else{
    unsubs.push(onSnapshot(doc(db,'users',u.uid),s=>{S.profile=s.exists()?s.data():null;S.ready=true;if(S.profile?.status==='approved')ensureChat();render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'paymentReports'),where('tenantUid','==',u.uid)),s=>{S.reps=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'payments'),where('tenantUid','==',u.uid)),s=>{S.pays=s.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));render()},bad));
    unsubs.push(onSnapshot(query(collection(db,'units'),where('tenantUid','==',u.uid)),s=>{S.unit=s.docs[0]?{id:s.docs[0].id,...s.docs[0].data()}:null;render()},bad));
+   unsubs.push(onSnapshot(query(collection(db,'maintenance'),where('tenantUid','==',u.uid)),s=>{S.mt=s.docs.map(d=>({id:d.id,...d.data()}));render()},bad));
   }
  });
 }else render();
@@ -599,6 +609,7 @@ function verifyView(p){
  <label for="v_type">ID type</label><select id="v_type">${['National ID','Driver\'s license','Passport','Other government ID'].map(t=>`<option ${p?.idType===t?'selected':''}>${t}</option>`).join('')}</select>
  <label for="v_file">ID photo (JPG or PNG)</label><input id="v_file" type="file" accept="image/*" onchange="pickFile(this)">
  <div id="prev" class="prev">${S.idData?`<img src="${S.idData}" alt="ID preview">`:''}</div>
+ <label class="chk"><input type="checkbox" id="v_ok"><span>I agree that my name and ID photo are collected to verify my tenancy. <a href="#" onclick="showPrivacy();return false">Read the privacy notice</a></span></label>
  <div class="err" id="msg">${esc(S.msg)}</div>
  <div class="row">${S.redo?'<button onclick="S.redo=false;render()">Cancel</button>':''}<button class="p" id="v_btn" onclick="submitVerify()">Submit for review</button></div></div>`}
 function compress(file,max=1000,lim=900000){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error('Could not read the file.'));
@@ -611,9 +622,10 @@ async function submitVerify(){
  const name=$('#v_name').value.trim();
  if(!name)return msg('Enter your full name as shown on your ID.');
  if(!S.idData)return msg('Upload a clear photo of your ID.');
+ if(!$('#v_ok').checked)return msg('Please agree to the privacy notice to continue.');
  const btn=$('#v_btn');btn.disabled=true;btn.textContent='Submitting…';
  try{const b=writeBatch(db),uid=S.user.uid;
-  b.set(doc(db,'ids',uid),{image:S.idData,updatedAt:serverTimestamp()});
+  b.set(doc(db,'ids',uid),{image:S.idData,consentAt:serverTimestamp(),updatedAt:serverTimestamp()});
   b.set(doc(db,'users',uid),{name,email:S.user.email||'',idType:$('#v_type').value,status:'pending',reason:'',submittedAt:serverTimestamp()});
   await b.commit();S.idData='';S.redo=false;S.msg=''}catch(e){btn.disabled=false;btn.textContent='Submit for review';msg(fe(e))}}
 function tenantView(a){
@@ -626,7 +638,7 @@ function tenantView(a){
  const pgv=S.page,B=`<div class="banner ${s}" style="background:var(--${s==='paid'?'okb':s==='overdue'?'badb':'warnb'})">${m[0]}<small>${m[1]}</small></div>
  <div class="card">${doorPic(a,"big")}<h2>Unit ${esc(a.unit)}</h2><div class="info"><div><span>Tenant</span><br><b>${esc(a.tenantName)}</b></div><div><span>Monthly rent</span><br><b>${money(a.rent)}</b></div><div><span>Due date</span><br><b>${fmt(a.due)}</b></div><div><span>Status</span><br>${badge(s)}</div></div></div>
  `,N=`<div class="card"><h2>Notifications</h2><div class="note">${badge(s)} ${n}</div>${payNotes()}${repNotes()}<p class="mut" style="margin:10px 0 0">Your property owner updates payment status.</p></div>`;
- return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reportCard(a,s)}
+ return pgv==='history'?payHistory(a,s):pgv==='notif'?N+reminderCard():B+reportCard(a,s)+maintCard()}
 const repNotes=()=>S.reps.slice().sort((x,y)=>ms(y.createdAt)-ms(x.createdAt)).map(r=>`<div class="note">${badge(r.status)} ${monthLabel(r.month)}: ${r.status==='approved'?'Owner confirmed your '+money(r.amount)+' payment.':r.status==='declined'?'Declined. '+esc(r.reason||'No reason given.'):'Waiting for the owner to confirm '+money(r.amount)+'.'}</div>`).join('');
 function reportCard(a,s){
  if(s==='paid'||vacant(a))return'';
@@ -649,7 +661,7 @@ function payHistory(a,s){
 function ownerView(){
  const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat'].includes(S.page)?S.page:'units';
  const nav=`<nav class="nav">${navBtn(pg,'units','Units',pendRep().length?`<span class="dot">${pendRep().length}</span>`:'')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`;
- return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():unitsView());
+ return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():maintOwner()+unitsView());
 }
 const page=p=>{S.page=p;render()},filt=k=>{S.filter=k;render()};
 function regsView(){
@@ -913,7 +925,25 @@ async function forgot(){const em=$('#a_email').value.trim();if(!em)return msg('T
  try{await sendPasswordResetEmail(auth,em);msg('Password reset email sent. Check your inbox.')}catch(e){msg(fe(e))}}
 const resend=()=>sendEmailVerification(auth.currentUser).then(()=>msg('Verification email sent.')).catch(e=>msg(fe(e)));
 const logout=()=>signOut(auth);
-Object.assign(window,{pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
+/* ---- maintenance requests ---- */
+const MT_ST={open:'Open',doing:'In progress',fixed:'Fixed'},MT_NEXT={open:'doing',doing:'fixed'};
+const mtSorted=()=>(S.mt||[]).slice().sort((x,y)=>ms(y.createdAt)-ms(x.createdAt));
+const mtRow=(r,own)=>`<div class="reg"><div><b>${esc(r.title)}</b><br><span class="mut">${r.unit?'Unit '+esc(r.unit)+' · ':''}${esc(r.desc||'')}</span>${okImg(r.photo)?`<br><button class="s" onclick="viewMaint('${r.id}')">Photo</button>`:''}</div><div class="regr"><span class="badge">${MT_ST[r.status]||'Open'}</span>${own&&MT_NEXT[r.status]?`<button class="s p" onclick="mtNext('${r.id}')">Mark ${MT_ST[MT_NEXT[r.status]].toLowerCase()}</button>`:''}</div></div>`;
+const maintCard=()=>`<div class="card"><div class="head"><h2 style="margin:0">Maintenance</h2><button class="p s" onclick="newMaint()">Report a problem</button></div>${mtSorted().map(r=>mtRow(r,false)).join('')||'<p class="mut" style="margin:0">No requests yet.</p>'}</div>`;
+const maintOwner=()=>{const o=mtSorted().filter(r=>r.status!=='fixed');return o.length?`<div class="card"><h2>Maintenance requests <span class="badge">${o.length}</span></h2>${o.map(r=>mtRow(r,true)).join('')}</div>`:''};
+function newMaint(){S.mtPhoto='';openM(`<h2>Report a problem</h2><label for="m_t">What is wrong?</label><input id="m_t" maxlength="80" placeholder="e.g. Leaking faucet"><label for="m_d">Details (optional)</label><textarea id="m_d" maxlength="500" rows="3"></textarea><label for="m_f">Photo (optional)</label><input id="m_f" type="file" accept="image/*" onchange="pickMaint(this)"><div id="m_p" class="prev"></div><div class="err" id="m_e"></div><div class="row"><button onclick="closeM()">Cancel</button><button class="p" onclick="submitMaint()">Send</button></div>`)}
+async function pickMaint(el){const f=el.files[0];if(!f)return;if(!f.type.startsWith('image/')||f.size>15e6){formErr('m_e','Choose a JPG or PNG photo under 15 MB.');el.value='';return}
+ try{S.mtPhoto=await compress(f,900,200000);formErr('m_e','');$('#m_p').innerHTML=`<img src="${S.mtPhoto}" alt="Preview">`}catch(e){formErr('m_e',e.message)}}
+const submitMaint=()=>run(async()=>{const t=$('#m_t').value.trim();if(!t||!S.unit){formErr('m_e','Say what is wrong.','m_t');return}
+ const d={unitId:S.unit.id,unit:S.unit.unit,tenantUid:S.user.uid,tenantName:S.unit.tenantName||'',title:t,desc:$('#m_d').value.trim(),status:'open',createdAt:serverTimestamp()};
+ if(S.mtPhoto)d.photo=S.mtPhoto;const b=writeBatch(db);b.set(doc(collection(db,'maintenance')),d);await b.commit();closeM();toast('Request sent to the owner')});
+const mtNext=id=>run(async()=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!MT_NEXT[r.status])return;await updateDoc(doc(db,'maintenance',id),{status:MT_NEXT[r.status],updatedAt:serverTimestamp()})});
+const viewMaint=id=>{const r=(S.mt||[]).find(x=>x.id===id);if(!r||!okImg(r.photo))return;openM(`<h2>${esc(r.title)}</h2><img class="idimg" src="${r.photo}" alt="Problem photo"><div class="row"><button onclick="closeM()">Close</button></div>`)};
+/* ---- privacy notice + offline banner ---- */
+const showPrivacy=()=>openM(`<h2>Privacy notice</h2><p class="mut" style="margin-top:0">Under the Philippine Data Privacy Act (RA 10173):</p><p><b>What we collect:</b> your name, email, ID type and a photo of your government ID, plus rent and payment records, receipts you upload and chat messages.</p><p><b>Why:</b> to verify who you are, link you to your unit, and record rent payments.</p><p><b>Who can see it:</b> only you and the property owner. Your ID photo is not shown to other tenants.</p><p><b>How long:</b> the owner keeps it while you are a tenant and deletes your ID photo after your tenancy ends, unless the law requires otherwise. Payment records are kept as permanent receipts.</p><p><b>Your rights:</b> you may ask the owner to see, correct or delete your data.</p><div class="row"><button class="p" onclick="closeM()">Close</button></div>`);
+const net=()=>{let b=$('#offl');if(!b){b=document.createElement('div');b.id='offl';b.setAttribute('role','status');b.textContent='You are offline. Changes will sync when you reconnect.';document.body.appendChild(b)}b.classList.toggle('on',!navigator.onLine)};
+addEventListener('online',net);addEventListener('offline',net);net();
+Object.assign(window,{newMaint,pickMaint,submitMaint,mtNext,viewMaint,showPrivacy,pickUnitPhoto,rmUnitPhoto,viewUnit,showReceipt,printReceipt,exportCsv,printReport,receipt,viewProof,pickProof,enableReminders,showFab,toggleTheme,installApp,reportPay,submitReport,approveRep,declineRep,checkDup,setQ,setSt,setMonth,shiftMonth,send,delMsg,S,render,page,filt,tab,google,emailAuth,forgot,resend,logout,redo,pickFile,submitVerify,review,approve,decline,edit,saveUnit,nextCycle,del,markPaid,closeM});
 
 </script>
 </body>
