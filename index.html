@@ -568,6 +568,7 @@ const IC={
  rent:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>',
  out:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>'};
 IC.history='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';IC.notif='<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>';
+IC.backup='<svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>';
 const navBtn=(pg,id,label,extra='')=>`<button class="${pg===id?'on':''}" onclick="page('${id}')" title="${label}" aria-label="${label}">${IC[id]}<span class="nl">${label}</span>${extra}</button>`;
 const soloNav=()=>`<nav class="nav" style="justify-content:flex-end">${logoutBtn().replace('<span class="sep"></span>','')}</nav>`;
 const logoutBtn=()=>{const u=S.user||{};const who=(u.email||u.displayName||'')+' · '+(S.owner?'Owner':'Tenant');return`${installBtn()}${themeBtn()}<span class="sep"></span><button class="out" onclick="logout()" title="Log out (${esc(who)})" aria-label="Log out">${IC.out}</button>`};
@@ -582,7 +583,7 @@ function render0(){
  if(!S.ready){app.innerHTML=hero('Apartment Billing','Loading your data…')+'<div class="card"><div class="skl" style="width:40%"></div><div class="skl"></div><div class="skl" style="width:70%"></div></div>';return}
  if(!S.user){app.innerHTML=hero('Apartment Billing','Verified tenants, clear rent status.')+authView();return}
  if(!S.owner&&OWNER_EMAILS.includes((S.user.email||'').toLowerCase())){app.innerHTML=hero('Verify your email','Owner access needs a verified email.')+soloNav()+`<div class="card login"><p>Check your inbox for the verification link, or log in with Google instead.</p><div class="row"><button onclick="resend()">Resend email</button><button class="p" onclick="location.reload()">I verified it</button></div><div class="err" id="msg"></div></div>`;return}
- if(S.owner){app.innerHTML=hero('Your apartments','Review registrations, then update occupancy and payments.')+ownerView();paintUnits();return}
+ if(S.owner){app.innerHTML=(S.page==='backup'?hero('Photo backup','Download your photos, then delete them to free storage.'):hero('Your apartments','Review registrations, then update occupancy and payments.'))+ownerView();paintUnits();return}
  const ok=S.profile?.status==='approved',pg=['chat','history','notif'].includes(S.page)?S.page:'rent',T={chat:['Group chat','Talk with the owner and other tenants.'],history:['Payment history','Every rent payment you have made.'],notif:['Notifications','Rent reminders and updates on your payments.']}[pg]||['Your rent','Register once, then see what you owe and when.'];
  app.innerHTML=hero(T[0],T[1])+(ok?tenantNav(pg):soloNav())+(ok&&pg==='chat'?chatView():tenantApp());
 }
@@ -677,9 +678,9 @@ function payHistory(a,s){
 
 /* owner */
 function ownerView(){
- const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat'].includes(S.page)?S.page:'units';
- const nav=`<nav class="nav">${navBtn(pg,'units','Units',pendRep().length?`<span class="dot">${pendRep().length}</span>`:'')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${logoutBtn()}</nav>`;
- return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():maintOwner()+unitsView());
+ const pend=S.users.filter(u=>u.status==='pending').length,pg=['regs','chat','backup'].includes(S.page)?S.page:'units';
+ const nav=`<nav class="nav">${navBtn(pg,'units','Units',pendRep().length?`<span class="dot">${pendRep().length}</span>`:'')}${navBtn(pg,'regs','Registrations',pend?`<span class="dot">${pend}</span>`:'')}${navBtn(pg,'chat','Group chat',pg==='chat'?'':unreadBadge())}${navBtn(pg,'backup','Photo backup')}${logoutBtn()}</nav>`;
+ return nav+(S.msg&&pg!=='chat'?`<div class="card"><div class="err" id="msg">${esc(S.msg)}</div></div>`:'')+(pg==='chat'?chatView():pg==='regs'?regsView():pg==='backup'?bkCard():maintOwner()+unitsView());
 }
 const page=p=>{S.page=p;render()},filt=k=>{S.filter=k;render()};
 function regsView(){
@@ -705,7 +706,7 @@ const setQ=v=>{S.q=v;paintUnits()};
 const setSt=k=>{S.st=k;paintUnits();document.querySelectorAll('#u_chips button').forEach(b=>b.classList.toggle('on',b.dataset.k===k))};
 function paintUnits(){
  const rp=$('#u_reps');if(rp){const L=pendRep();rp.innerHTML=L.length?`<div class="card"><h2>Payment reports <span class="dot" style="position:static">${L.length}</span></h2>${L.map(r=>`<div class="reg"><div><b>Unit ${esc(r.unit)} · ${esc(r.tenantName)}</b><br><span class="mut">${money(r.amount)} for ${monthLabel(r.month)} · paid ${fmt(r.paidDate)}${r.ref?' · Ref '+esc(r.ref):''}</span></div><div class="regr">${r.proof?`<button class="s" onclick="viewProof('${r.id}')">View proof</button>`:''}<button class="s p" onclick="approveRep('${r.id}')">Approve</button><button class="s" onclick="declineRep('${r.id}')">Decline</button></div></div>`).join('')}</div>`:''}
- const rm=$('#u_rem');if(rm)rm.innerHTML=ownerRemCard()+bkCard();
+ const rm=$('#u_rem');if(rm)rm.innerHTML=ownerRemCard();
  const ss=$('#u_stats'),ll=$('#u_list');if(!ss||!ll)return;
  const A=S.units,ym=S.month,pend=S.users.filter(u=>u.status==='pending').length;
  const M=A.map(a=>({a,...mstat(a,ym)}));
